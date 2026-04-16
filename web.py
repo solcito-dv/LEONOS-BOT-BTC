@@ -35,6 +35,7 @@ st.markdown("""
     
     .stApp { background-color: #000000; font-family: 'JetBrains Mono', monospace; color: #FFFFFF; }
     
+    /* Paneles Dorado Mate */
     .neon-panel { 
         border: 1px solid #B8860B; 
         border-radius: 10px; 
@@ -52,10 +53,7 @@ st.markdown("""
     }
     
     .panel-content { padding: 15px; }
-    
     .price-main { color: #FFFFFF; font-size: 38px; font-weight: 900; font-family: 'Orbitron'; }
-    
-    /* Info en Blanco (EMA, USDT, etc) */
     .sub-info { color: #FFFFFF !important; font-size: 12px; margin-top: 5px; font-weight: 500; }
 
     .status-box {
@@ -69,22 +67,24 @@ st.markdown("""
         font-weight: bold;
     }
 
-    /* Sidebar Blanco y Dorado */
+    /* SIDEBAR CORREGIDO: Todo en blanco */
     [data-testid="stSidebar"] { background-color: #050505; border-right: 1px solid #222; }
-    .sidebar-title { color: #DAA520; font-family: 'Orbitron'; font-size: 18px; }
-    .sidebar-text { color: #FFFFFF !important; font-size: 12px; }
+    .sidebar-title { color: #DAA520; font-family: 'Orbitron'; font-size: 18px; margin-bottom: 0px; }
+    .sidebar-sub { color: #DAA520; font-size: 11px; font-weight: bold; margin-bottom: 15px; }
+    
+    /* Forzar color blanco en radio buttons y labels del sidebar */
+    .stRadio label p { color: #FFFFFF !important; font-size: 14px !important; }
+    .stMarkdown p { color: #FFFFFF !important; }
     
     /* Tabla Historial */
-    .hist-header {
+    .hist-grid {
         display: grid; 
         grid-template-columns: 1fr 1fr 1fr 1fr 1fr; 
-        color: #DAA520; 
-        font-weight: 900; 
-        font-size: 11px;
-        border-bottom: 1px solid #444;
-        padding-bottom: 8px;
-        margin-bottom: 8px;
+        gap: 10px;
+        padding: 10px 0;
     }
+    .hist-header-item { color: #DAA520; font-weight: 900; font-size: 11px; text-transform: uppercase; border-bottom: 1px solid #444; padding-bottom: 5px; }
+    .hist-row-item { color: #FFFFFF; font-size: 12px; padding: 5px 0; border-bottom: 1px solid #222; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -107,18 +107,21 @@ data, wallet, exchange = fetch_all()
 # --- 4. SIDEBAR ---
 with st.sidebar:
     st.markdown('<p class="sidebar-title">LEONOS CONTROL</p>', unsafe_allow_html=True)
-    st.markdown('<p style="color:#DAA520; font-size:11px; font-weight:bold;">BTC STRATEGY</p>', unsafe_allow_html=True)
+    st.markdown('<p class="sidebar-sub">BTC STRATEGY V19</p>', unsafe_allow_html=True)
     
     bot_encendido = st.toggle('SISTEMA ACTIVO', value=True)
     st.markdown("---")
     
+    # Aquí las letras ahora serán blancas por el CSS de arriba
     modo = st.radio("VELOCIDAD DE SALIDA:", ["Scalper (0.35%)", "Equilibrado (0.55%)", "Tendencia (0.90%)"])
     targets = {"Scalper (0.35%)": 0.35, "Equilibrado (0.55%)": 0.55, "Tendencia (0.90%)": 0.90}
     target_actual = targets[modo]
     
     st.markdown("---")
-    st.markdown('<p class="sidebar-text">Servidor: Online</p>', unsafe_allow_html=True)
-    st.markdown('<p class="sidebar-text">Exchange: MEXC Global</p>', unsafe_allow_html=True)
+    st.markdown('<p style="font-size:12px; font-weight:bold; color:white;">INFO DEL SISTEMA:</p>', unsafe_allow_html=True)
+    st.markdown('• Servidor: Online (Cloud)', unsafe_allow_html=True)
+    st.markdown('• Exchange: MEXC Global', unsafe_allow_html=True)
+    st.markdown('• Monitoreo: Activo 24/7', unsafe_allow_html=True)
 
 # CABECERA
 st.markdown('<h1 style="font-family:Orbitron; color:#DAA520; margin-bottom:20px;">🦁 LEONOS BTC <span style="font-weight:300; color:white;">V19</span></h1>', unsafe_allow_html=True)
@@ -126,7 +129,7 @@ st.markdown('<h1 style="font-family:Orbitron; color:#DAA520; margin-bottom:20px;
 if data is not None:
     price, rsi, ema200 = data['close'], data['rsi'], data['ema200']
     
-    # FILA 1: DASHBOARD
+    # DASHBOARD
     c1, c2, c3, c4 = st.columns(4)
     with c1: 
         st.markdown(f'<div class="neon-panel"><div class="panel-header">PRECIO & EMA</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div class="sub-info">EMA200: ${ema200:,.1f}</div></div></div>', unsafe_allow_html=True)
@@ -174,21 +177,36 @@ if data is not None:
     # SITUACIÓN ACTUAL
     st.markdown(f'<div class="neon-panel"><div class="panel-header">SITUACIÓN ACTUAL</div><div class="panel-content"><div class="status-box">{log_msg}</div></div></div>', unsafe_allow_html=True)
 
-    # HISTORIAL DE OPERACIONES (ENCABEZADOS ADENTRO)
+    # HISTORIAL DE OPERACIONES LÍMPIO
     st.markdown('<div class="neon-panel"><div class="panel-header">📜 HISTORIAL DE CAZA BTC</div><div class="panel-content">', unsafe_allow_html=True)
     
-    # Encabezado Único dentro del recuadro
-    st.markdown('<div class="hist-header"><div>HORA</div><div>COMPRA</div><div>VENTA</div><div>NETO</div><div>PROFIT</div></div>', unsafe_allow_html=True)
+    # Encabezado corregido: Solo una vez
+    st.markdown("""
+        <div class="hist-grid">
+            <div class="hist-header-item">HORA</div>
+            <div class="hist-header-item">COMPRA</div>
+            <div class="hist-header-item">VENTA</div>
+            <div class="hist-header-item">NETO</div>
+            <div class="hist-header-item">PROFIT</div>
+        </div>
+    """, unsafe_allow_html=True)
     
-    filas = ""
     if state["history"]:
         for op in reversed(state["history"][-8:]):
             color_p = "#00FF00" if "-" not in op["Neto"] else "#FF4444"
-            filas += f'<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; padding: 10px 0; border-bottom: 1px solid #222; font-size: 12px; color:white;"><div>{op["Fecha"]}</div><div>{op["Entrada"]}</div><div>{op["Salida"]}</div><div style="color:{color_p}">{op["Neto"]}</div><div style="color:{color_p}">{op["Profit"]}</div></div>'
+            st.markdown(f"""
+                <div class="hist-grid">
+                    <div class="hist-row-item">{op["Fecha"]}</div>
+                    <div class="hist-row-item">{op["Entrada"]}</div>
+                    <div class="hist-row-item">{op["Salida"]}</div>
+                    <div class="hist-row-item" style="color:{color_p}; font-weight:bold;">{op["Neto"]}</div>
+                    <div class="hist-row-item" style="color:{color_p};">{op["Profit"]}</div>
+                </div>
+            """, unsafe_allow_html=True)
     else:
-        filas = '<p style="text-align:center; color:#555; font-size:12px;">Esperando primera operación...</p>'
+        st.markdown('<p style="text-align:center; color:#555; font-size:12px; padding:20px;">Esperando primera operación...</p>', unsafe_allow_html=True)
     
-    st.markdown(f'{filas}</div></div>', unsafe_allow_html=True)
+    st.markdown('</div></div>', unsafe_allow_html=True)
 
 time.sleep(10)
 st.rerun()
