@@ -106,7 +106,7 @@ st.markdown("""
 # --- 3. LOGICA Y DATOS ---
 def fetch_all():
     try:
-        mexc = ccxt.mexc({'apiKey': 'mx0vgl09AkPKRbOGO0', 'secret': '39820e86675d494eb5fb0b5c3a184741', 'options': {'adjustForTimeDifference': True}})
+        mexc = ccxt.mexc({'apiKey': 'mx0vglJcyb3BIWHjDk', 'secret': 'de1285d2de1945d2a66e502945c7324b', 'options': {'adjustForTimeDifference': True}})
         bars = mexc.fetch_ohlcv(SYMBOL, timeframe='1m', limit=100)
         df = pd.DataFrame(bars, columns=['time', 'open', 'high', 'low', 'close', 'vol'])
         delta = df['close'].diff()
