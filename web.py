@@ -26,7 +26,7 @@ def load_state():
 def save_state(state):
     with open(STATE_FILE, 'w') as f: json.dump(state, f)
 
-# --- 2. DISEÑO Y ESTILOS ---
+# --- 2. DISEÑO Y ESTILOS (VIOLETA OSCURO) ---
 st.set_page_config(page_title="LEONOS BTC | V19", layout="wide")
 st.markdown("""
     <style>
@@ -53,22 +53,22 @@ st.markdown("""
         font-weight: 900;
     }
 
-    /* TITULO VIOLETA PARA SITUACION E HISTORIAL */
-    .header-violet { color: #BF94E4 !important; border-bottom: 1px solid #BF94E4 !important; }
+    /* VIOLETA OSCURO PARA TÍTULOS E INFO (AJUSTADO) */
+    .header-violet { color: #4B0082 !important; border-bottom: 1px solid #4B0082 !important; }
+    .sub-info-violet { color: #4B0082 !important; font-size: 12px; margin-top: 5px; font-weight: 800; }
     
     .panel-content { padding: 20px; }
     .price-main { color: #FFFFFF; font-size: 42px; font-weight: 900; font-family: 'Orbitron'; line-height: 1; }
-    .sub-info { color: #DAA520; font-size: 12px; margin-top: 5px; }
     
     .status-msg { 
         color: #FFFFFF; 
         font-style: italic; 
         font-size: 15px; 
-        border-left: 4px solid #BF94E4; 
+        border-left: 4px solid #4B0082; 
         padding-left: 15px; 
     }
 
-    /* Sidebar - Forzar letras blancas */
+    /* Sidebar - Letras Blancas */
     [data-testid="stSidebar"] { background-color: #050505; border-right: 1px solid #222; }
     .stWidgetLabel p, .stMarkdown p, p, label { color: #FFFFFF !important; font-size: 14px !important; }
     
@@ -117,13 +117,13 @@ if data is not None:
     # DASHBOARD
     c1, c2, c3, c4 = st.columns(4)
     with c1: 
-        st.markdown(f'<div class="neon-panel"><div class="panel-header">PRECIO & EMA</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div class="sub-info">EMA200: ${ema200:,.0f}</div></div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="neon-panel"><div class="panel-header">PRECIO & EMA</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div class="sub-info-violet">EMA200: ${ema200:,.0f}</div></div></div>', unsafe_allow_html=True)
     with c2: 
-        st.markdown(f'<div class="neon-panel"><div class="panel-header">RSI ACTUAL</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div class="sub-info">OBJETIVO: < 35</div></div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="neon-panel"><div class="panel-header">RSI ACTUAL</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div class="sub-info-violet">OBJETIVO: < 35</div></div></div>', unsafe_allow_html=True)
     with c3: 
-        st.markdown(f'<div class="neon-panel"><div class="panel-header">BILLETERA USDT</div><div class="panel-content"><span class="price-main" style="color:#DAA520;">${wallet:.2f}</span><div class="sub-info">DISPONIBLE</div></div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="neon-panel"><div class="panel-header">BILLETERA USDT</div><div class="panel-content"><span class="price-main" style="color:#DAA520;">${wallet:.2f}</span><div style="color: #DAA520; font-size: 12px; margin-top: 5px;">DISPONIBLE</div></div></div>', unsafe_allow_html=True)
     with c4: 
-        st.markdown(f'<div class="neon-panel"><div class="panel-header">GANANCIA</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div class="sub-info">TOTAL ACUMULADO</div></div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="neon-panel"><div class="panel-header">GANANCIA</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div style="color: #00FF00; font-size: 12px; margin-top: 5px;">TOTAL ACUMULADO</div></div></div>', unsafe_allow_html=True)
 
     log_msg = "Acechando entrada..."
     if not bot_encendido: log_msg = "SISTEMA EN PAUSA"
@@ -151,10 +151,10 @@ if data is not None:
                 except: pass
             else: log_msg = f"DENTRO: {neta:.2f}% (Buscando {target_actual}%)"
 
-    # SITUACIÓN ACTUAL CON TÍTULO VIOLETA
+    # SITUACIÓN ACTUAL CON TÍTULO VIOLETA OSCURO
     st.markdown(f'<div class="neon-panel"><div class="panel-header header-violet">SITUACIÓN ACTUAL</div><div class="panel-content"><div class="status-msg">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
 
-    # HISTORIAL CON TÍTULO VIOLETA
+    # HISTORIAL CON TÍTULO VIOLETA OSCURO
     hist_header = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; color: #DAA520; font-weight: bold; border-bottom: 1px solid #B8860B; padding-bottom: 8px; font-size: 13px;"><div>HORA</div><div>COMPRA</div><div>VENTA</div><div>NETO</div><div>PROFIT</div></div>'
     hist_body = ""
     if state["history"]:
