@@ -26,7 +26,7 @@ def load_state():
 def save_state(state):
     with open(STATE_FILE, 'w') as f: json.dump(state, f)
 
-# --- 2. DISEÑO Y ESTILOS (CELESTE FIRME Y DORADO) ---
+# --- 2. DISEÑO Y ESTILOS (ROJO Y AMARILLO) ---
 st.set_page_config(page_title="LEONOS BTC | V19", layout="wide")
 st.markdown("""
     <style>
@@ -34,64 +34,55 @@ st.markdown("""
     
     .stApp { background-color: #000000; font-family: 'JetBrains Mono', monospace; color: #FFFFFF; }
     
-    /* Paneles Dorados */
+    /* PANELES ROJOS (CRIMSON) */
     .neon-panel { 
-        border: 2px solid #B8860B; 
+        border: 2px solid #DC143C; 
         border-radius: 12px; 
         background: #050505; 
         margin-bottom: 20px; 
-        box-shadow: 0 0 15px rgba(184, 134, 11, 0.2); 
+        box-shadow: 0 0 15px rgba(220, 20, 60, 0.2); 
     }
     
-    /* Cabeceras Estándar */
+    /* CABECERAS CON FRANJA Y TITULOS AMARILLOS */
     .panel-header { 
-        background: rgba(184, 134, 11, 0.1); 
+        background: rgba(220, 20, 60, 0.2); 
         padding: 12px; 
-        border-bottom: 1px solid #B8860B; 
-        color: #FFFFFF !important; 
+        border-bottom: 1px solid #DC143C; 
+        color: #FFFF00 !important; /* AMARILLO FUERTE */
         font-family: 'Orbitron'; 
         font-size: 14px; 
         text-transform: uppercase;
         font-weight: 900;
+        letter-spacing: 1px;
     }
-
-    /* CELESTE FIRME (DEEP SKY BLUE) PARA TÍTULOS E INFO */
-    .header-celeste { 
-        color: #00BFFF !important; 
-        padding: 12px;
-        font-family: 'Orbitron'; 
-        font-size: 14px; 
-        text-transform: uppercase;
-        font-weight: 900;
-        border-bottom: none !important; /* Eliminada la línea de abajo del título */
-    }
-    
-    .sub-info-celeste { color: #00BFFF !important; font-size: 12px; margin-top: 5px; font-weight: 800; }
     
     .panel-content { padding: 20px; }
     .price-main { color: #FFFFFF; font-size: 42px; font-weight: 900; font-family: 'Orbitron'; line-height: 1; }
     
-    /* Estado con borde lateral celeste */
+    /* INFO TÉCNICA EN AMARILLO */
+    .sub-info-yellow { color: #FFFF00 !important; font-size: 12px; margin-top: 5px; font-weight: 800; }
+    
+    /* SITUACIÓN MENSAJE */
     .status-msg { 
         color: #FFFFFF; 
         font-style: italic; 
         font-size: 15px; 
-        border-left: 4px solid #00BFFF; 
+        border-left: 4px solid #FFFF00; 
         padding-left: 15px; 
     }
 
-    /* Sidebar */
+    /* SIDEBAR Y LISTA DESPLEGABLE EN BLANCO */
     [data-testid="stSidebar"] { background-color: #050505; border-right: 1px solid #222; }
-    .stWidgetLabel p, label { color: #FFFFFF !important; }
+    .stWidgetLabel p, label, .stSelectbox div, .stRadio div { color: #FFFFFF !important; font-size: 14px !important; }
     .sidebar-info { color: #00FF00; font-size: 12px; font-family: 'JetBrains Mono'; margin-top: 10px; }
 
-    /* Historial Cabezales Blancos */
+    /* HISTORIAL */
     .hist-header-row {
         display: grid; 
         grid-template-columns: 1fr 1fr 1fr 1fr 1fr; 
-        color: #FFFFFF; 
+        color: #FFFF00; /* CABEZALES AMARILLOS */
         font-weight: bold; 
-        border-bottom: 1px solid #333; 
+        border-bottom: 1px solid #DC143C; 
         padding-bottom: 8px; 
         font-size: 13px;
     }
@@ -118,17 +109,18 @@ data, wallet, exchange = fetch_all()
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    st.markdown('<p style="color:#DAA520; font-family:Orbitron; font-size:18px; font-weight:900;">🦁 LEONOS CONTROL</p>', unsafe_allow_html=True)
+    st.markdown('<p style="color:#DC143C; font-family:Orbitron; font-size:18px; font-weight:900;">🦁 LEONOS CONTROL</p>', unsafe_allow_html=True)
     bot_encendido = st.toggle('SISTEMA ACTIVO', value=True)
     st.markdown("---")
-    st.markdown('<p style="color:#DAA520; font-size:12px; font-weight:bold;">ESTADO DE LA NUBE</p>', unsafe_allow_html=True)
+    st.markdown('<p style="color:#FFFF00; font-size:12px; font-weight:bold;">ESTADO DE LA NUBE</p>', unsafe_allow_html=True)
     st.markdown('<div class="sidebar-info">● SERVIDOR: OPERATIVO</div>', unsafe_allow_html=True)
     st.markdown('<div class="sidebar-info">● EXCHANGE: MEXC CONNECTED</div>', unsafe_allow_html=True)
     st.markdown("---")
+    # LISTA EN BLANCO (FORZADO POR CSS ARRIBA)
     modo = st.radio("INTENSIDAD:", ["Scalper (0.35%)", "Equilibrado (0.55%)", "Tendencia (0.90%)"])
     target_actual = {"Scalper (0.35%)": 0.35, "Equilibrado (0.55%)": 0.55, "Tendencia (0.90%)": 0.90}[modo]
 
-st.markdown('<h1 style="font-family:Orbitron; color:#DAA520; margin-bottom:20px;">🦁 LEONOS BTC V19</h1>', unsafe_allow_html=True)
+st.markdown('<h1 style="font-family:Orbitron; color:#DC143C; margin-bottom:20px;">🦁 LEONOS BTC V19</h1>', unsafe_allow_html=True)
 
 if data is not None:
     price, rsi, ema200 = data['close'], data['rsi'], data['ema200']
@@ -136,11 +128,11 @@ if data is not None:
     # DASHBOARD
     c1, c2, c3, c4 = st.columns(4)
     with c1: 
-        st.markdown(f'<div class="neon-panel"><div class="panel-header">PRECIO & EMA</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div class="sub-info-celeste">EMA200: ${ema200:,.0f}</div></div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="neon-panel"><div class="panel-header">PRECIO & EMA</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div class="sub-info-yellow">EMA200: ${ema200:,.0f}</div></div></div>', unsafe_allow_html=True)
     with c2: 
-        st.markdown(f'<div class="neon-panel"><div class="panel-header">RSI ACTUAL</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div class="sub-info-celeste">OBJETIVO: < 35</div></div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="neon-panel"><div class="panel-header">RSI ACTUAL</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div class="sub-info-yellow">OBJETIVO: < 35</div></div></div>', unsafe_allow_html=True)
     with c3: 
-        st.markdown(f'<div class="neon-panel"><div class="panel-header">BILLETERA USDT</div><div class="panel-content"><span class="price-main" style="color:#DAA520;">${wallet:.2f}</span><div style="color: #DAA520; font-size: 12px; margin-top: 5px;">DISPONIBLE</div></div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="neon-panel"><div class="panel-header">BILLETERA USDT</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${wallet:.2f}</span><div style="color: #FFFF00; font-size: 12px; margin-top: 5px;">DISPONIBLE</div></div></div>', unsafe_allow_html=True)
     with c4: 
         st.markdown(f'<div class="neon-panel"><div class="panel-header">GANANCIA</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div style="color: #00FF00; font-size: 12px; margin-top: 5px;">TOTAL ACUMULADO</div></div></div>', unsafe_allow_html=True)
 
@@ -166,20 +158,21 @@ if data is not None:
                     state.update({"in_position": False, "compras": [], "monto_total": 0.0})
                     save_state(state)
                 except: pass
-            else: log_msg = f"DENTRO DEL MERCADO: {neta:.2f}% (Buscando {target_actual}%)"
+            else: log_msg = f"DENTRO: {neta:.2f}% (Meta {target_actual}%)"
 
-    # SITUACIÓN ACTUAL
-    st.markdown(f'<div class="neon-panel"><div class="header-celeste">SITUACIÓN ACTUAL</div><div class="panel-content"><div class="status-msg">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
+    # SITUACIÓN ACTUAL - CON FRANJA AMARILLA
+    st.markdown(f'<div class="neon-panel"><div class="panel-header">SITUACIÓN ACTUAL</div><div class="panel-content"><div class="status-msg">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
 
-    # HISTORIAL
+    # HISTORIAL - CON FRANJA AMARILLA
     hist_header = '<div class="hist-header-row"><div>HORA</div><div>COMPRA</div><div>VENTA</div><div>NETO</div><div>PROFIT</div></div>'
     hist_body = ""
     if state["history"]:
         for op in reversed(state["history"][-10:]):
-            color_p = "#00FF00" if "-" not in op["Neto"] else "#FF4444"
+            # ROJO DE PERDIDA (#FF0000) DISTINTO AL ROJO DE BORDE (#DC143C)
+            color_p = "#00FF00" if "-" not in op["Neto"] else "#FF0000"
             hist_body += f'<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; padding: 10px 0; border-bottom: 1px solid #222; color: white; font-size: 13px;"><div>{op["Fecha"]}</div><div>{op["Entrada"]}</div><div>{op["Salida"]}</div><div style="color:{color_p}; font-weight:bold;">{op["Neto"]}</div><div style="color:{color_p};">{op["Profit"]}</div></div>'
     
-    st.markdown(f'<div class="neon-panel"><div class="header-celeste">📜 ÚLTIMAS OPERACIONES BTC</div><div class="panel-content">{hist_header}{hist_body}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="neon-panel"><div class="panel-header">📜 ÚLTIMAS OPERACIONES BTC</div><div class="panel-content">{hist_header}{hist_body}</div></div>', unsafe_allow_html=True)
 
 time.sleep(15)
 st.rerun()
