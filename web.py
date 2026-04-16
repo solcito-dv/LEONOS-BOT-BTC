@@ -26,7 +26,7 @@ def load_state():
 def save_state(state):
     with open(STATE_FILE, 'w') as f: json.dump(state, f)
 
-# --- 2. DISEÑO CUSTOM (V19 PROPORTIONAL) ---
+# --- 2. DISEÑO CUSTOM (V19 FINAL REFINADO) ---
 st.set_page_config(page_title="LEONOS BTC | V19", layout="wide")
 st.markdown("""
     <style>
@@ -34,16 +34,15 @@ st.markdown("""
     
     .stApp { background-color: #000000; font-family: 'JetBrains Mono', monospace; color: #FFFFFF; }
     
-    /* Espaciado general de columnas */
-    [data-testid="column"] { padding: 0 5px !important; }
+    /* Ajuste de distancias entre columnas del dashboard */
+    [data-testid="column"] { padding: 0 8px !important; }
 
-    /* Paneles Dorado Mate */
+    /* Paneles Principales */
     .neon-panel { 
         border: 1px solid #B8860B; 
-        border-radius: 8px; 
+        border-radius: 10px; 
         background: #080808; 
-        margin-bottom: 15px; /* Menos distancia entre recuadros */
-        overflow: hidden;
+        margin-bottom: 12px; /* Espaciado ajustado entre filas */
     }
     
     .panel-header { 
@@ -52,51 +51,54 @@ st.markdown("""
         border-bottom: 1px solid #B8860B; 
         color: #DAA520; 
         font-family: 'Orbitron'; 
-        font-size: 12px; 
+        font-size: 11px; 
         text-transform: uppercase;
+        letter-spacing: 1px;
     }
     
     .panel-content { padding: 12px 15px; }
-    .price-main { color: #FFFFFF; font-size: 32px; font-weight: 900; font-family: 'Orbitron'; line-height: 1; }
-    .sub-info { color: #FFFFFF !important; font-size: 11px; margin-top: 4px; font-weight: 500; }
+    .price-main { color: #FFFFFF; font-size: 30px; font-weight: 900; font-family: 'Orbitron'; }
+    .sub-info { color: #FFFFFF !important; font-size: 11px; margin-top: 4px; }
 
     /* Situación Actual (Tamaño Normalizado) */
-    .status-box {
-        border: 1px solid #333;
-        background: #050505;
-        color: #FFF;
-        padding: 12px;
-        border-radius: 6px;
+    .status-container {
+        padding: 10px 15px;
+        background: #080808;
+        border: 1px solid #B8860B;
+        border-radius: 8px;
         text-align: center;
+    }
+    .status-box {
+        color: #FFF;
         text-transform: uppercase;
         font-weight: 700;
-        font-size: 15px;
+        font-size: 14px;
         letter-spacing: 1px;
     }
 
-    /* SIDEBAR */
+    /* SIDEBAR: FORZAR BLANCO Y AMARILLO */
     [data-testid="stSidebar"] { background-color: #050505; border-right: 1px solid #222; }
-    .sidebar-title { color: #DAA520; font-family: 'Orbitron'; font-size: 18px; }
+    button[kind="header"] svg { fill: #DAA520 !important; }
     .stToggle label p, .stRadio label p, .stMarkdown p { 
         color: #FFFFFF !important; 
         font-size: 13px !important; 
-        font-weight: 500 !important; 
     }
 
-    /* Grid del Historial (Compacto y enmarcado) */
-    .hist-container {
+    /* Estructura del Historial Enmarcado */
+    .hist-box {
         border: 1px solid #333;
-        border-radius: 6px;
-        padding: 10px;
         background: #050505;
+        border-radius: 6px;
+        padding: 15px;
+        margin-top: 5px;
     }
     .hist-grid-header {
         display: grid; 
         grid-template-columns: 1fr 1fr 1fr 1fr 1fr; 
         color: #DAA520; 
         font-weight: 900; 
-        font-size: 12px; 
-        border-bottom: 1px solid #333; 
+        font-size: 11px; 
+        border-bottom: 1px solid #444; 
         padding-bottom: 8px;
         margin-bottom: 8px;
     }
@@ -104,7 +106,7 @@ st.markdown("""
         display: grid; 
         grid-template-columns: 1fr 1fr 1fr 1fr 1fr; 
         color: #FFFFFF; 
-        font-size: 13px; 
+        font-size: 12px; 
         padding: 6px 0; 
         border-bottom: 1px solid #1a1a1a;
     }
@@ -129,8 +131,8 @@ data, wallet, exchange = fetch_all()
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
-    st.markdown('<p class="sidebar-title">LEONOS CONTROL</p>', unsafe_allow_html=True)
-    st.markdown('<p style="color:#DAA520; font-size:10px; font-weight:bold;">SISTEMA BTC V19</p>', unsafe_allow_html=True)
+    st.markdown('<p style="color:#DAA520; font-family:Orbitron; font-size:18px;">LEONOS CONTROL</p>', unsafe_allow_html=True)
+    st.markdown('<p style="color:#DAA520; font-size:10px; font-weight:bold;">BTC ESTRATEGIA V19</p>', unsafe_allow_html=True)
     
     bot_encendido = st.toggle('SISTEMA ACTIVO', value=True)
     st.markdown("---")
@@ -144,12 +146,12 @@ with st.sidebar:
     st.write("• Exchange: MEXC Global")
 
 # CABECERA
-st.markdown('<h1 style="font-family:Orbitron; color:#DAA520; margin-bottom:15px; font-size:28px;">🦁 LEONOS BTC <span style="font-weight:300; color:white;">V19</span></h1>', unsafe_allow_html=True)
+st.markdown('<h1 style="font-family:Orbitron; color:#DAA520; margin-bottom:15px; font-size:26px;">🦁 LEONOS BTC <span style="font-weight:300; color:white;">V19</span></h1>', unsafe_allow_html=True)
 
 if data is not None:
     price, rsi, ema200 = data['close'], data['rsi'], data['ema200']
     
-    # FILA 1: DASHBOARD
+    # DASHBOARD 4 COLUMNAS
     c1, c2, c3, c4 = st.columns(4)
     with c1: 
         st.markdown(f'<div class="neon-panel"><div class="panel-header">PRECIO & EMA</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div class="sub-info">EMA200: ${ema200:,.1f}</div></div></div>', unsafe_allow_html=True)
@@ -177,30 +179,19 @@ if data is not None:
             tp = promedio * (1 + (target_actual / 100))
             
             st.markdown(f"""
-                <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 15px;">
-                    <div style="border: 1px solid #DAA520; color: #FFF; padding: 6px 15px; border-radius: 4px; font-size: 13px; font-weight:bold;">ENTRY: ${promedio:,.1f}</div>
-                    <div style="border: 1px solid #00FF88; color: #FFF; padding: 6px 15px; border-radius: 4px; font-size: 13px; font-weight:bold;">META: ${tp:,.1f}</div>
+                <div style="display: flex; gap: 8px; justify-content: center; margin-bottom: 12px;">
+                    <div style="border: 1px solid #DAA520; color: #FFF; padding: 5px 12px; border-radius: 4px; font-size: 12px; font-weight:bold;">ENTRY: ${promedio:,.1f}</div>
+                    <div style="border: 1px solid #00FF88; color: #FFF; padding: 5px 12px; border-radius: 4px; font-size: 12px; font-weight:bold;">META: ${tp:,.1f}</div>
                 </div>
             """, unsafe_allow_html=True)
+            log_msg = f"DENTRO: {neta:.2f}% (Meta {target_actual}%)"
 
-            if neta >= target_actual or neta <= -2.5:
-                try:
-                    exchange.create_limit_sell_order(SYMBOL, state['monto_total'] / promedio, price)
-                    prof = (state['monto_total'] * neta / 100)
-                    state["history"].append({"Fecha": datetime.now().strftime("%H:%M"), "Entrada": f"${promedio:,.0f}", "Salida": f"${price:,.0f}", "Neto": f"{neta:.2f}%", "Profit": f"${prof:.4f}"})
-                    state["pnl_acumulado"] += prof
-                    state.update({"in_position": False, "compras": [], "monto_total": 0.0}); save_state(state)
-                except: pass
-            else:
-                log_msg = f"DENTRO: {neta:.2f}% (Meta {target_actual}%)"
+    # SITUACIÓN ACTUAL (Panel con borde y tamaño equilibrado)
+    st.markdown(f'<div class="neon-panel"><div class="panel-header">SITUACIÓN ACTUAL</div><div class="panel-content"><div class="status-container"><div class="status-box">{log_msg}</div></div></div></div>', unsafe_allow_html=True)
 
-    # SITUACIÓN ACTUAL
-    st.markdown(f'<div class="neon-panel"><div class="panel-header">SITUACIÓN ACTUAL</div><div class="panel-content"><div class="status-box">{log_msg}</div></div></div>', unsafe_allow_html=True)
-
-    # HISTORIAL COMPACTO Y ENMARCADO
-    st.markdown('<div class="neon-panel"><div class="panel-header">📜 HISTORIAL DE CAZA BTC</div>', unsafe_allow_html=True)
-    st.markdown('<div class="panel-content">', unsafe_allow_html=True)
-    st.markdown('<div class="hist-container">', unsafe_allow_html=True)
+    # HISTORIAL DE OPERACIONES (Recuadro que envuelve todo)
+    st.markdown('<div class="neon-panel"><div class="panel-header">📜 HISTORIAL DE CAZA BTC</div><div class="panel-content">', unsafe_allow_html=True)
+    st.markdown('<div class="hist-box">', unsafe_allow_html=True)
     
     st.markdown("""
         <div class="hist-grid-header">
@@ -219,7 +210,7 @@ if data is not None:
                 </div>
             """, unsafe_allow_html=True)
     else:
-        st.markdown('<p style="text-align:center; color:#555; font-size:13px; padding:10px;">Esperando primera operación...</p>', unsafe_allow_html=True)
+        st.markdown('<p style="text-align:center; color:#555; font-size:12px;">Esperando primera operación...</p>', unsafe_allow_html=True)
     
     st.markdown('</div></div></div>', unsafe_allow_html=True)
 
