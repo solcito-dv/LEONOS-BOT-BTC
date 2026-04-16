@@ -12,9 +12,9 @@ API_KEY_BTC = 'mx0vglJcyb3BIWHjDk'
 SECRET_KEY_BTC = 'de1285d2de1945d2a66e502945c7324b'
 SYMBOL = 'BTC/USDT'
 STATE_FILE = 'leonos_btc_state.json'
-MONTO_OPERACION = 10.0
+MONTO_OPERACION = 10.0 # Tu inversión base asignada
 
-# CONFIGURACIÓN TELEGRAM (REEMPLAZAR CON TUS DATOS)
+# --- CONFIGURACIÓN TELEGRAM ---
 TELEGRAM_TOKEN = '8763648952:AAEIva2htoqUUog2ieiTJND1cx4BWZr-qss'
 TELEGRAM_CHAT_ID = '6458029736'
 
@@ -24,6 +24,7 @@ def send_telegram_msg(msg):
         requests.get(url)
     except: pass
 
+# --- MANEJO DE MEMORIA (ARCHIVO JSON) ---
 def load_state():
     if os.path.exists(STATE_FILE):
         try:
@@ -37,7 +38,7 @@ def load_state():
 def save_state(state):
     with open(STATE_FILE, 'w') as f: json.dump(state, f)
 
-# --- 2. DISEÑO Y ESTILOS (OFICIAL: ROJO Y AMARILLO) ---
+# --- 2. DISEÑO Y ESTILOS (OFICIAL Y PERMANENTE: ROJO Y AMARILLO) ---
 st.set_page_config(page_title="LEONOS BTC | V19", layout="wide")
 st.markdown("""
     <style>
@@ -93,7 +94,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. MOTOR DE DATOS ---
+# --- 3. MOTOR DE DATOS (CONEXIÓN A MEXC) ---
 def fetch_all():
     try:
         mexc = ccxt.mexc({'apiKey': API_KEY_BTC, 'secret': SECRET_KEY_BTC, 'options': {'adjustForTimeDifference': True}})
@@ -111,11 +112,16 @@ def fetch_all():
 state = load_state()
 data, wallet, exchange = fetch_all()
 
-# --- 4. SIDEBAR ---
+# --- 4. SIDEBAR (CONTROL Y ESTADO) ---
 with st.sidebar:
     st.markdown('<p style="color:#DC143C; font-family:Orbitron; font-size:18px; font-weight:900;">🦁 LEONOS CONTROL</p>', unsafe_allow_html=True)
     bot_encendido = st.toggle('SISTEMA ACTIVO', value=True)
     st.markdown("---")
+    st.markdown('<p style="color:#FFFF00; font-size:12px; font-weight:bold;">ESTADO DE LA NUBE</p>', unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-info">● SERVIDOR: OPERATIVO</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-info">● EXCHANGE: MEXC CONNECTED</div>', unsafe_allow_html=True)
+    st.markdown("---")
+    # LISTA EN BLANCO (FORZADO POR CSS)
     modo = st.radio("INTENSIDAD:", ["Scalper (0.35%)", "Equilibrado (0.55%)", "Tendencia (0.90%)"])
     target_actual = {"Scalper (0.35%)": 0.35, "Equilibrado (0.55%)": 0.55, "Tendencia (0.90%)": 0.90}[modo]
 
@@ -124,17 +130,25 @@ st.markdown('<h1 style="font-family:Orbitron; color:#DC143C; margin-bottom:20px;
 if data is not None:
     price, rsi, ema200 = data['close'], data['rsi'], data['ema200']
     
-    # DASHBOARD
-    c1, c2, c3, c4 = st.columns(4)
-    with c1: st.markdown(f'<div class="neon-panel"><div class="panel-header">PRECIO & EMA</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div class="sub-info-yellow">EMA200: ${ema200:,.0f}</div></div></div>', unsafe_allow_html=True)
-    with c2: st.markdown(f'<div class="neon-panel"><div class="panel-header">RSI ACTUAL</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div class="sub-info-yellow">OBJETIVO: < 35</div></div></div>', unsafe_allow_html=True)
-    with c3: st.markdown(f'<div class="neon-panel"><div class="panel-header">BILLETERA USDT</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${wallet:.2f}</span><div style="color: #FFFF00; font-size: 12px; margin-top: 5px;">DISPONIBLE</div></div></div>', unsafe_allow_html=True)
-    with c4: st.markdown(f'<div class="neon-panel"><div class="panel-header">GANANCIA</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div style="color: #00FF00; font-size: 12px; margin-top: 5px;">TOTAL ACUMULADO</div></div></div>', unsafe_allow_html=True)
+    # Lógica de Capital Dinámico (Lo que asignaste + lo ganado)
+    presupuesto_total = MONTO_OPERACION + state["pnl_acumulado"]
 
+    # --- 5. DASHBOARD VISUAL ---
+    c1, c2, c3, c4 = st.columns(4)
+    with c1: 
+        st.markdown(f'<div class="neon-panel"><div class="panel-header">PRECIO & EMA</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div class="sub-info-yellow">EMA200: ${ema200:,.0f}</div></div></div>', unsafe_allow_html=True)
+    with c2: 
+        st.markdown(f'<div class="neon-panel"><div class="panel-header">RSI ACTUAL</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div class="sub-info-yellow">OBJETIVO: < 35</div></div></div>', unsafe_allow_html=True)
+    with c3: 
+        st.markdown(f'<div class="neon-panel"><div class="panel-header">CAPITAL BOT</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${presupuesto_total:.2f}</span><div style="color: #FFFF00; font-size: 12px; margin-top: 5px;">BASE + GANANCIAS</div></div></div>', unsafe_allow_html=True)
+    with c4: 
+        st.markdown(f'<div class="neon-panel"><div class="panel-header">PNL NETO</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div style="color: #00FF00; font-size: 12px; margin-top: 5px;">TOTAL GANADO</div></div></div>', unsafe_allow_html=True)
+
+    # --- 6. LÓGICA DE TRADING ---
     log_msg = "Acechando entrada..."
     if not bot_encendido:
         log_msg = "SISTEMA EN PAUSA MANUAL"
-        st.info("⏸️ Bot en pausa.")
+        st.info("⏸️ Bot en pausa. No se ejecutarán órdenes.")
     else:
         if not state["in_position"]:
             if rsi < 35 and wallet >= MONTO_OPERACION: 
@@ -143,13 +157,13 @@ if data is not None:
                     state.update({"in_position": True, "compras": [price], "monto_total": MONTO_OPERACION})
                     save_state(state)
                     st.success(f"🚀 COMPRA EJECUTADA: BTC a ${price:,.0f}")
-                    send_telegram_msg(f"🦁 *LEONOS BTC*\n🚀 *COMPRA*\n💰 Precio: ${price:,.0f}\n🎯 Objetivo: +{target_actual}%")
+                    send_telegram_msg(f"🦁 *LEONOS BTC*\n🚀 *COMPRA*\n💰 Precio: ${price:,.0f}\n🎯 Modo: {modo}")
                 except: pass
         else:
             promedio = state["compras"][0]
             neta = ((price - promedio) / promedio) * 100
             
-            # Lógica de Venta (TP o SL)
+            # Verificación de Venta (Take Profit o Stop Loss de -2.5%)
             if neta >= target_actual or neta <= -2.5:
                 tipo_venta = "TAKE PROFIT" if neta >= target_actual else "STOP LOSS"
                 try:
@@ -160,15 +174,19 @@ if data is not None:
                     state.update({"in_position": False, "compras": [], "monto_total": 0.0})
                     save_state(state)
                     
-                    if neta >= 0: st.balloons(); st.success(f"💰 VENTA EXITOSA ({tipo_venta}): {neta:.2f}%")
-                    else: st.error(f"📉 VENTA POR SEGURIDAD ({tipo_venta}): {neta:.2f}%")
+                    if neta >= 0: 
+                        st.balloons()
+                        st.success(f"💰 VENTA EXITOSA ({tipo_venta})")
+                    else: 
+                        st.error(f"📉 VENTA POR SEGURIDAD ({tipo_venta})")
                     
-                    send_telegram_msg(f"🦁 *LEONOS BTC*\n🏁 *VENTA ({tipo_venta})*\n📥 Entrada: ${promedio:,.0f}\n📤 Salida: ${price:,.0f}\n📊 Neto: {neta:.2f}%\n💵 Profit: ${prof:.4f}")
+                    send_telegram_msg(f"🦁 *LEONOS BTC*\n🏁 *VENTA ({tipo_venta})*\n📥 In: ${promedio:,.0f}\n📤 Out: ${price:,.0f}\n📊 Neto: {neta:.2f}%\n💵 Profit: ${prof:.4f}")
                 except: pass
             else: 
                 log_msg = f"DENTRO: {neta:.2f}% (Meta {target_actual}%)"
-                st.warning(f"⚖️ Posición abierta: {neta:.2f}%")
+                st.warning(f"⚖️ Posición abierta: {neta:.2f}% de rendimiento actual.")
 
+    # --- 7. PANELES FINALES (ESTADO E HISTORIAL) ---
     st.markdown(f'<div class="neon-panel"><div class="panel-header">SITUACIÓN ACTUAL</div><div class="panel-content"><div class="status-msg">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
 
     hist_header = '<div class="hist-header-row"><div>HORA</div><div>COMPRA</div><div>VENTA</div><div>NETO</div><div>PROFIT</div></div>'
