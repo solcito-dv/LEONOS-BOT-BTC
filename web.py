@@ -7,25 +7,22 @@ import os
 from datetime import datetime
 import requests
 
-# --- 1. CONFIGURACIÓN DE SEGURIDAD Y LLAVES ---
-# REEMPLAZA ESTO CON TU NUEVA LLAVE DE BTC
-API_KEY_BTC = 'mx0vglJcyb3BIWHjDk' 
-SECRET_KEY_BTC = 'de1285d2de1945d2a66e502945c7324b'
+# --- 1. CONFIGURACIÓN DE SEGURIDAD ---
+API_KEY_BTC = 'mx0vgl09AkPKRbOGO0' 
+SECRET_KEY_BTC = '39820e86675d494eb5fb0b5c3a184741'
 SYMBOL = 'BTC/USDT'
 STATE_FILE = 'leonos_btc_state.json' 
-MONTO_OPERACION = 10.0  # Monto fijo e independiente
+MONTO_OPERACION = 10.0
 
-def enviar_telegram_pro(titulo, precio, profit, neto, estado):
+def enviar_telegram_premium(titulo, precio, profit, neto, estado):
     token = "8763648952:AAEIva2htoqUUog2ieiTJND1cx4BWZr-qss"
     chat_id = "6458029736"
-    # Formato profesional para Telegram
-    msg = (f"🦁 {titulo}\n"
+    msg = (f"💎 LEONOS PREMIUM | {titulo}\n"
            f"━━━━━━━━━━━━━━━\n"
-           f"💰 Precio: {precio}\n"
-           f"📈 Profit: {profit}\n"
-           f"📊 Neto: {neto}\n"
-           f"📝 Estado: {estado}\n"
-           f"📍 Moneda: BITCOIN")
+           f"💰 PRECIO: {precio}\n"
+           f"📈 PROFIT: {profit}\n"
+           f"📊 NETO: {neto}\n"
+           f"🏛️ ESTADO: {estado}")
     url = f"https://api.telegram.org/bot{token}/sendMessage?chat_id={chat_id}&text={msg}"
     try: requests.get(url)
     except: pass
@@ -34,117 +31,135 @@ def load_state():
     if os.path.exists(STATE_FILE):
         try:
             with open(STATE_FILE, 'r') as f:
-                state = json.load(f)
-                if "pnl_ganado" not in state: state["pnl_ganado"] = 0.0
-                return state
+                return json.load(f)
         except: pass
     return {"in_position": False, "compras": [], "monto_total": 0.0, "history": [], "pnl_ganado": 0.0}
 
 def save_state(state):
     with open(STATE_FILE, 'w') as f: json.dump(state, f)
 
-# --- 2. DISEÑO DE INTERFAZ PROFESIONAL ---
-st.set_page_config(page_title="LEONOS BTC SCALPER", layout="wide")
+# --- 2. INTERFAZ PREMIUM (ESTILO DARK STEALTH) ---
+st.set_page_config(page_title="LEONOS BTC PREMIUM", layout="wide")
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=JetBrains+Mono&display=swap');
-    .stApp { background-color: #000000; font-family: 'JetBrains Mono'; color: #FFFFFF; }
-    .neon-panel { border: 2px solid #FF8C00; border-radius: 12px; background: #050505; margin-bottom: 15px; box-shadow: 0 0 15px rgba(255, 140, 0, 0.3); }
-    .panel-header { background: rgba(255, 140, 0, 0.2); padding: 10px; border-bottom: 1px solid #FF8C00; color: #FFD700; font-family: 'Orbitron'; font-size: 13px; text-transform: uppercase; }
-    .panel-content { padding: 15px; text-align: center; }
-    .price-main { color: #FFFFFF; font-size: 40px; font-weight: 900; font-family: 'Orbitron'; text-shadow: 0 0 10px rgba(255,255,255,0.2); }
-    .metric-sub { color: #888; font-size: 12px; margin-top: 5px; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700&family=IBM+Plex+Mono&display=swap');
+    
+    .stApp { background-color: #000000; font-family: 'Inter', sans-serif; color: #E0E0E0; }
+    
+    /* Paneles Elegantes */
+    .metric-card {
+        background: #0A0A0A;
+        border: 1px solid #222;
+        border-radius: 4px;
+        padding: 20px;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+    .metric-label { color: #888; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 10px; }
+    .metric-value { color: #D4AF37; font-size: 32px; font-weight: 700; font-family: 'IBM Plex Mono'; }
+    
+    /* Sidebar Premium */
+    [data-testid="stSidebar"] { background-color: #050505; border-right: 1px solid #111; }
+    
+    /* Tabla de Historial */
+    .pnl-pos { color: #00FF88; font-weight: bold; }
+    .pnl-neg { color: #FF3333; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. MOTOR DE DATOS Y CONEXIÓN ---
-def fetch_all():
+# --- 3. BARRA LATERAL (SIDEBAR SMART) ---
+with st.sidebar:
+    st.markdown("<h2 style='color:#D4AF37; font-size:20px;'>CONTROL CENTER</h2>", unsafe_allow_html=True)
+    st.markdown("---")
+    
+    # Selector de Agresividad
+    agresividad = st.select_slider(
+        "MODO DE AGRESIVIDAD",
+        options=["Conservador", "Equilibrado", "Scalper"],
+        value="Equilibrado"
+    )
+    
+    targets = {"Conservador": 0.45, "Equilibrado": 0.60, "Scalper": 0.85}
+    target_actual = targets[agresividad]
+    
+    st.write(f"🎯 Target Objetivo: **{target_actual}%**")
+    st.markdown("---")
+    
+    if st.button("RESETEAR SISTEMA"):
+        st.session_state.clear()
+        st.rerun()
+
+# --- 4. EJECUCIÓN DEL MOTOR ---
+def fetch_data():
     try:
         mexc = ccxt.mexc({'apiKey': API_KEY_BTC, 'secret': SECRET_KEY_BTC, 'options': {'adjustForTimeDifference': True}})
-        bars = mexc.fetch_ohlcv(SYMBOL, timeframe='1m', limit=100)
-        df = pd.DataFrame(bars, columns=['time', 'open', 'high', 'low', 'close', 'vol'])
-        # Cálculo de RSI
-        delta = df['close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+        bars = mexc.fetch_ohlcv(SYMBOL, timeframe='1m', limit=50)
+        df = pd.DataFrame(bars, columns=['t', 'o', 'h', 'l', 'c', 'v'])
+        delta = df['c'].diff(); gain = (delta.where(delta > 0, 0)).rolling(14).mean(); loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
         df['rsi'] = 100 - (100 / (1 + (gain / loss)))
-        # Saldo real
         balance = mexc.fetch_balance()
         return df.iloc[-1], balance['free']['USDT'], mexc
     except: return None, 0, None
 
 state = load_state()
-data, wallet_real, exchange = fetch_all()
+data, wallet_real, exchange = fetch_data()
 
-# --- CABECERA ---
-st.markdown('<h1 style="font-family:Orbitron; color:#FFD700; text-align:center; margin-bottom:5px;">🦁 LEONOS BTC SCALPER</h1>', unsafe_allow_html=True)
-st.markdown(f'<p style="text-align:center; color:#FF8C00; font-size:14px;">MODO 0 FEE | PREPUSESTO: ${MONTO_OPERACION} USDT</p>', unsafe_allow_html=True)
+# HEADER
+st.markdown("<div style='text-align:center;'><h1 style='color:#D4AF37; font-weight:300; letter-spacing:5px;'>LEONOS <span style='font-weight:700;'>BITCOIN</span></h1><p style='color:#555;'>INSTITUTIONAL GRADE SCALPING</p></div>", unsafe_allow_html=True)
 
 if data is not None:
-    price, rsi = data['close'], data['rsi']
-    target_scalp = 0.55  # 0.55% de ganancia para Bitcoin
+    price, rsi = data['c'], data['rsi']
     
-    # DASHBOARD DE 3 COLUMNAS
+    # DASHBOARD
     c1, c2, c3 = st.columns(3)
-    with c1: 
-        st.markdown(f'<div class="neon-panel"><div class="panel-header">PRECIO BITCOIN</div><div class="panel-content"><span class="price-main">${price:,.2f}</span><div class="metric-sub">Símbolo: {SYMBOL}</div></div></div>', unsafe_allow_html=True)
-    with c2: 
-        st.markdown(f'<div class="neon-panel"><div class="panel-header">RSI (COMPRA < 30)</div><div class="panel-content"><span class="price-main" style="color:#FFA500;">{rsi:.2f}</span><div class="metric-sub">Filtro de Sobreventa</div></div></div>', unsafe_allow_html=True)
-    with c3: 
-        st.markdown(f'<div class="neon-panel"><div class="panel-header">GANANCIA ACUMULADA</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_ganado"]:.4f}</span><div class="metric-sub">Solo de este bot</div></div></div>', unsafe_allow_html=True)
+    with c1:
+        st.markdown(f'<div class="metric-card"><div class="metric-label">Market Price</div><div class="metric-value">${price:,.2f}</div></div>', unsafe_allow_html=True)
+    with c2:
+        color_rsi = "#D4AF37" if 30 < rsi < 70 else ("#00FF88" if rsi <= 30 else "#FF3333")
+        st.markdown(f'<div class="metric-card"><div class="metric-label">RSI Index</div><div class="metric-value" style="color:{color_rsi};">{rsi:.2f}</div></div>', unsafe_allow_html=True)
+    with c3:
+        color_pnl = "#00FF88" if state["pnl_ganado"] >= 0 else "#FF3333"
+        st.markdown(f'<div class="metric-card"><div class="metric-label">Total Profit</div><div class="metric-value" style="color:{color_pnl};">${state["pnl_ganado"]:.4f}</div></div>', unsafe_allow_html=True)
 
-    # --- LÓGICA DE OPERACIÓN ---
-    log_status = "👁️ Acechando entrada perfecta..."
-    
+    # LÓGICA DE TRADING
     if not state["in_position"]:
-        # Solo compra si RSI está bajo y hay dinero en la billetera
         if rsi < 30 and wallet_real >= MONTO_OPERACION:
             try:
                 exchange.create_limit_buy_order(SYMBOL, MONTO_OPERACION / price, price)
                 state.update({"in_position": True, "compras": [price], "monto_total": MONTO_OPERACION})
                 save_state(state)
-                enviar_telegram_pro("COMPRA BTC 🦁", f"${price:,.2f}", "---", "---", "Buscando Scalp Rápido")
-            except Exception as e: st.error(f"Error en Compra: {e}")
+                enviar_telegram_premium("ENTRY EXECUTED", f"${price:,.2f}", "---", "---", f"Agresividad: {agresividad}")
+            except Exception as e: st.error(f"Error: {e}")
     else:
-        precio_entrada = state["compras"][0]
-        ganancia_neta = ((price - precio_entrada) / precio_entrada) * 100
+        p_entrada = state["compras"][0]
+        pnl_neto = ((price - p_entrada) / p_entrada) * 100
         
-        # VENTAS: Scalping Rápido (0.55%) o Stop Loss (-2.5%)
-        if ganancia_neta >= target_scalp or ganancia_neta <= -2.5:
+        if pnl_neto >= target_actual or pnl_neto <= -2.5:
             try:
-                exchange.create_limit_sell_order(SYMBOL, state['monto_total'] / precio_entrada, price)
-                profit_usd = (state['monto_total'] * ganancia_neta / 100)
+                exchange.create_limit_sell_order(SYMBOL, state['monto_total'] / p_entrada, price)
+                profit_usd = (state['monto_total'] * pnl_neto / 100)
                 state["pnl_ganado"] += profit_usd
-                state["history"].append({
-                    "H": datetime.now().strftime("%H:%M:%S"),
-                    "P": f"{ganancia_neta:.2f}%",
-                    "USD": f"${profit_usd:.4f}"
-                })
+                state["history"].append({"Hora": datetime.now().strftime("%H:%M"), "Neto": f"{pnl_neto:.2f}%", "USD": f"${profit_usd:.4f}"})
                 state.update({"in_position": False, "compras": [], "monto_total": 0.0})
                 save_state(state)
-                enviar_telegram_pro("VENTA BTC 💰", f"${price:,.2f}", f"${profit_usd:.4f}", f"{ganancia_neta:.2f}%", "Operación Cerrada")
+                enviar_telegram_premium("EXIT EXECUTED", f"${price:,.2f}", f"${profit_usd:.4f}", f"{pnl_neto:.2f}%", "Closed")
             except: pass
         else:
-            log_status = f"🚀 En posición: {ganancia_neta:.2f}% (Buscando {target_scalp}%)"
+            st.markdown(f"<p style='text-align:center; color:#888;'>🚀 Position Active: <span style='color:#D4AF37;'>{pnl_neto:.2f}%</span> (Target: {target_actual}%)</p>", unsafe_allow_html=True)
 
-    st.info(log_status)
-
-    # --- TABLA DE HISTORIAL ESTILO TRADING ---
-    st.markdown('<p style="color:#FFD700; font-family:Orbitron; font-size:14px; margin-top:20px;">📜 ÚLTIMOS ESCALPES BTC</p>', unsafe_allow_html=True)
+    # HISTORIAL PREMIUM
+    st.markdown("<br><h3 style='font-size:14px; color:#555; letter-spacing:2px;'>RECENT ACTIVITY</h3>", unsafe_allow_html=True)
     if state["history"]:
-        df_hist = pd.DataFrame(state["history"]).tail(5)
-        st.table(df_hist)
-    else:
-        st.write("Esperando primera operación...")
-
-# --- BARRA LATERAL DE CONTROL ---
-with st.sidebar:
-    st.markdown("### ⚙️ CONTROL")
-    st.write(f"Billetera Real: **${wallet_real:.2f} USDT**")
-    if st.button("RESETEAR HISTORIAL BTC"):
-        state["history"] = []
-        save_state(state)
-        st.rerun()
+        # Crear tabla con colores
+        for h in reversed(state["history"][-5:]):
+            clase = "pnl-pos" if "-" not in h["USD"] else "pnl-neg"
+            st.markdown(f"""
+                <div style="display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #111;">
+                    <span style="color:#555;">{h['Hora']}</span>
+                    <span style="font-family:'IBM Plex Mono';">{h['Neto']}</span>
+                    <span class="{clase}" style="font-family:'IBM Plex Mono';">{h['USD']}</span>
+                </div>
+            """, unsafe_allow_html=True)
 
 time.sleep(10)
 st.rerun()
