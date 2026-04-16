@@ -8,8 +8,8 @@ from datetime import datetime
 import requests
 
 # --- 1. CONFIGURACIÓN DE SEGURIDAD (Tus llaves de BTC) ---
-API_KEY_BTC = 'mx0vgl09AkPKRbOGO0' 
-SECRET_KEY_BTC = '39820e86675d494eb5fb0b5c3a184741'
+API_KEY_BTC = 'mx0vglJcyb3BIWHjDk ' 
+SECRET_KEY_BTC = 'de1285d2de1945d2a66e502945c7324b'
 SYMBOL = 'BTC/USDT'
 STATE_FILE = 'leonos_btc_state.json'
 MONTO_OPERACION = 10.0
