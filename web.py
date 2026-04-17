@@ -23,7 +23,6 @@ def send_telegram_msg(msg):
     except: pass
 
 def load_state():
-    # DATOS RECUPERADOS SEGÚN TUS INDICACIONES
     data_recuperada = {
         "pnl_acumulado": 0.0176,
         "posiciones": [
@@ -50,8 +49,8 @@ def save_state(state):
             json.dump(state, f, indent=4)
     except: pass
 
-# --- 2. ESTILOS (IGUALES, SOLO AJUSTE DE FILA) ---
-st.set_page_config(page_title="LEONOS BTC | V29", layout="wide")
+# --- 2. ESTILOS (V30 - CORREGIDO) ---
+st.set_page_config(page_title="LEONOS BTC | V30", layout="wide")
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@500;800&display=swap');
@@ -63,16 +62,27 @@ st.markdown("""
     .panel-content { padding: 20px; }
     .price-main { color: #FFFFFF; font-size: 42px; font-weight: 900; font-family: 'Orbitron'; line-height: 1; }
     .status-msg { color: #FFFFFF; font-style: italic; font-size: 15px; border-left: 4px solid #FFFF00; padding-left: 15px; }
-    /* Estilo de Tarjetas */
-    .tarjeta-op { background: rgba(255,255,255,0.03); border: 1px solid #444; border-radius: 15px; padding: 15px; margin: 5px; text-align: center; }
-    .burbuja { padding: 8px 12px; border-radius: 20px; font-weight: 800; font-size: 11px; display: block; margin: 4px auto; border: 1px solid rgba(255,255,255,0.1); }
+    
+    /* TARJETAS CHIQUITAS EN UNA FILA */
+    .tarjeta-mini { 
+        display: inline-block; 
+        width: 45%; 
+        background: rgba(255,255,255,0.05); 
+        border: 1px solid #444; 
+        border-radius: 10px; 
+        padding: 10px; 
+        margin: 5px; 
+        vertical-align: top;
+        text-align: center;
+    }
+    .burbuja-mini { padding: 5px 10px; border-radius: 15px; font-weight: 800; font-size: 10px; display: block; margin: 3px auto; }
     .b-entrada { background: #1E90FF; color: white; }
     .b-venta { background: #228B22; color: white; }
     .b-stop { background: #B22222; color: white; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. INICIO ---
+# --- 3. PROCESO ---
 state = load_state()
 def fetch_all():
     try:
@@ -101,7 +111,7 @@ with st.sidebar:
     st.markdown("● SERVIDOR: OPERATIVO")
     st.markdown("● EXCHANGE: MEXC CONNECTED")
 
-st.markdown('<h1 style="font-family:Orbitron; color:#DC143C;">🦁 LEONOS BTC V29</h1>', unsafe_allow_html=True)
+st.markdown('<h1 style="font-family:Orbitron; color:#DC143C;">🦁 LEONOS BTC V30</h1>', unsafe_allow_html=True)
 
 if data is not None:
     price, rsi, ema200 = data['close'], data['rsi'], data['ema200']
@@ -112,26 +122,26 @@ if data is not None:
     with c1: st.markdown(f'<div class="neon-panel"><div class="panel-header">PRECIO & EMA</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div style="color:#FFFF00; font-size:12px;">EMA200: ${ema200:,.0f}</div></div></div>', unsafe_allow_html=True)
     with c2: st.markdown(f'<div class="neon-panel"><div class="panel-header">RSI ACTUAL</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div style="color:#FFFF00; font-size:12px;">OBJETIVO: < 35</div></div></div>', unsafe_allow_html=True)
     with c3: st.markdown(f'<div class="neon-panel"><div class="panel-header">CAPITAL EN USO</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${capital_en_uso:.2f}</span><div style="color:#FFFF00; font-size:12px;">EN OPERACIÓN</div></div></div>', unsafe_allow_html=True)
-    with c4: st.markdown(f'<div class="neon-panel"><div class="panel-header">PNL TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div style="color:#00FF00; font-size:12px;">PROFIT ACUMULADO</div></div></div>', unsafe_allow_html=True)
+    with c4: st.markdown(f'<div class="neon-panel"><div class="panel-header">PNL TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div style="color:#00FF00; font-size:12px;">GANANCIA ACUMULADA</div></div></div>', unsafe_allow_html=True)
 
-    # --- 5. TARJETAS EN UNA SOLA FILA ---
+    # --- 5. TARJETAS COMPACTAS UNA AL LADO DE LA OTRA ---
     if state["posiciones"]:
-        cols_op = st.columns(len(state["posiciones"]))
+        html_tarjetas = '<div style="text-align: center; margin-bottom: 20px;">'
         for i, pos in enumerate(state["posiciones"]):
             v_target = pos['precio'] * (1 + target_pct/100)
             v_stop = pos['precio'] * 0.975
-            with cols_op[i]:
-                st.markdown(f"""
-                    <div class="tarjeta-op">
-                        <p style="color:#FFFF00; font-weight:bold; font-size:12px; margin-bottom:10px;">OPERACIÓN {i+1}</p>
-                        <div class="burbuja b-entrada">COMPRA: ${pos['precio']:,.0f}</div>
-                        <div class="burbuja b-venta">TARGET: ${v_target:,.0f}</div>
-                        <div class="burbuja b-stop">STOP: ${v_stop:,.0f}</div>
-                        <p style="color:gray; font-size:10px; margin-top:5px;">Vol: ${pos['monto']}</p>
-                    </div>
-                """, unsafe_allow_html=True)
+            html_tarjetas += f"""
+                <div class="tarjeta-mini">
+                    <p style="color:#FFFF00; font-size:11px; font-weight:bold; margin-bottom:5px;">OP {i+1} (${pos['monto']})</p>
+                    <div class="burbuja-mini b-entrada">COMPRA: ${pos['precio']:,.0f}</div>
+                    <div class="burbuja-mini b-venta">TARGET: ${v_target:,.0f}</div>
+                    <div class="burbuja-mini b-stop">STOP: ${v_stop:,.0f}</div>
+                </div>
+            """
+        html_tarjetas += '</div>'
+        st.markdown(html_tarjetas, unsafe_allow_html=True)
 
-    # --- 6. LÓGICA ---
+    # --- 6. LÓGICA DE VENTA ---
     log_msg = "Acechando señales..."
     if bot_encendido:
         nuevas_pos = []
