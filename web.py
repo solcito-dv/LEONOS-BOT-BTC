@@ -37,15 +37,15 @@ def load_state():
 def save_state(state):
     with open(STATE_FILE, 'w') as f: json.dump(state, f, indent=4)
 
-# --- 2. DISEÑO Y ESTILOS (V24 - PROFESIONAL COMPLETO) ---
-st.set_page_config(page_title="LEONOS BTC | V24", layout="wide")
+# --- 2. DISEÑO Y ESTILOS ---
+st.set_page_config(page_title="LEONOS BTC | V25", layout="wide")
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@500;800&display=swap');
     
     .stApp { background-color: #000000; font-family: 'JetBrains Mono', monospace; color: #FFFFFF; }
     
-    /* Sidebar Fix (Texto Blanco y sin duplicados) */
+    /* Sidebar Profesional */
     [data-testid="stSidebar"] { background-color: #050505; border-right: 1px solid #222; }
     [data-testid="stSidebar"] label, [data-testid="stSidebar"] p, [data-testid="stSidebar"] span {
         color: #FFFFFF !important; font-weight: bold; font-size: 13px;
@@ -60,19 +60,16 @@ st.markdown("""
     .sub-info-yellow { color: #FFFF00 !important; font-size: 12px; margin-top: 5px; font-weight: 800; }
     .status-msg { color: #FFFFFF; font-style: italic; font-size: 15px; border-left: 4px solid #FFFF00; padding-left: 15px; }
 
-    /* Burbujas Tarjetas */
+    /* Tarjetas */
     .burbuja { padding: 10px 20px; border-radius: 30px; font-weight: 800; font-size: 14px; display: inline-block; margin: 5px; border: 1px solid rgba(255,255,255,0.2); }
     .b-entrada { background: #1E90FF; color: white; }
     .b-venta { background: #228B22; color: white; }
     .b-stop { background: #B22222; color: white; }
-
-    /* Historial Corregido (DENTRO DEL RECUADRO) */
-    .hist-header-row { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: 900; border-bottom: 1px solid #DC143C; padding-bottom: 10px; font-size: 12px; margin-bottom: 10px; }
-    .hist-item { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr 1fr; padding: 10px 0; border-bottom: 1px solid #222; color: white; font-size: 13px; align-items: center; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- 3. MOTOR ---
+state = load_state()
 def fetch_all():
     try:
         mexc = ccxt.mexc({'apiKey': API_KEY_BTC, 'secret': SECRET_KEY_BTC, 'options': {'adjustForTimeDifference': True}})
@@ -87,21 +84,21 @@ def fetch_all():
         return df.iloc[-1], balance['free']['USDT'], mexc
     except: return None, 0, None
 
-state = load_state()
 data, wallet_real, exchange = fetch_all()
 
-# --- 4. SIDEBAR (LEONOS CONTROL UNIFICADO) ---
+# --- 4. SIDEBAR (LIMPIA) ---
 with st.sidebar:
     st.markdown('<p style="color:#DC143C; font-family:Orbitron; font-size:18px; font-weight:900;">🦁 LEONOS CONTROL</p>', unsafe_allow_html=True)
     bot_encendido = st.toggle('SISTEMA ACTIVO', value=True)
     st.markdown("---")
-    modo = st.radio("INTENSIDAD DE TRADING:", ["Scalper (0.35%)", "Equilibrado (0.55%)", "Tendencia (0.90%)"])
+    # Limpiado para evitar duplicados
+    modo = st.selectbox("INTENSIDAD DE TRADING:", ["Scalper (0.35%)", "Equilibrado (0.55%)", "Tendencia (0.90%)"], index=1)
     target_pct = float(modo.split('(')[1].split('%')[0])
     st.markdown("---")
     st.markdown("● SERVIDOR: OPERATIVO")
     st.markdown("● EXCHANGE: MEXC CONNECTED")
 
-st.markdown('<h1 style="font-family:Orbitron; color:#DC143C;">🦁 LEONOS BTC V24</h1>', unsafe_allow_html=True)
+st.markdown('<h1 style="font-family:Orbitron; color:#DC143C;">🦁 LEONOS BTC V25</h1>', unsafe_allow_html=True)
 
 if data is not None:
     price, rsi, ema200 = data['close'], data['rsi'], data['ema200']
@@ -111,10 +108,10 @@ if data is not None:
     c1, c2, c3, c4 = st.columns(4)
     with c1: st.markdown(f'<div class="neon-panel"><div class="panel-header">PRECIO & EMA</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div class="sub-info-yellow">EMA200: ${ema200:,.0f}</div></div></div>', unsafe_allow_html=True)
     with c2: st.markdown(f'<div class="neon-panel"><div class="panel-header">RSI ACTUAL</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div class="sub-info-yellow">OBJETIVO: < 35</div></div></div>', unsafe_allow_html=True)
-    with c3: st.markdown(f'<div class="neon-panel"><div class="panel-header">CAPITAL EN USO</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${capital_en_uso:.2f}</span><div class="sub-info-yellow">TOTAL ASIGNADO: $10.00</div></div></div>', unsafe_allow_html=True)
-    with c4: st.markdown(f'<div class="neon-panel"><div class="panel-header">PNL ACUMULADO</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div style="color: #00FF00; font-size: 12px; margin-top: 5px;">PROFIT HISTÓRICO</div></div></div>', unsafe_allow_html=True)
+    with c3: st.markdown(f'<div class="neon-panel"><div class="panel-header">CAPITAL EN USO</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${capital_en_uso:.2f}</span><div class="sub-info-yellow">ASIGNADO: $10.00</div></div></div>', unsafe_allow_html=True)
+    with c4: st.markdown(f'<div class="neon-panel"><div class="panel-header">PNL TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div style="color: #00FF00; font-size: 12px; margin-top: 5px;">GANANCIA ACUMULADA</div></div></div>', unsafe_allow_html=True)
 
-    # --- 5. TARJETAS DE OPERACIÓN ACTIVA ---
+    # --- 5. TARJETAS DE OPERACIÓN ---
     if state["posiciones"]:
         st.markdown('<div style="text-align: center; margin-bottom: 20px;">', unsafe_allow_html=True)
         for i, pos in enumerate(state["posiciones"]):
@@ -127,7 +124,7 @@ if data is not None:
             """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 6. LÓGICA DE TRADING ---
+    # --- 6. LÓGICA ---
     log_msg = "Acechando señales..."
     if bot_encendido:
         nuevas_pos = []
@@ -138,9 +135,9 @@ if data is not None:
                     exchange.create_limit_sell_order(SYMBOL, pos['monto'] / pos['precio'], price)
                     prof = (pos['monto'] * neta / 100)
                     state["pnl_acumulado"] += prof
-                    state["history"].append({"Fecha": datetime.now().strftime("%d/%m %H:%M"), "Entrada": f"${pos['precio']:,.0f}", "Salida": f"${price:,.0f}", "Neto": f"{neta:.2f}%", "Profit": f"${prof:.4f}"})
+                    state["history"].append({"Fecha": datetime.now().strftime("%H:%M:%S"), "Entrada": f"${pos['precio']:,.0f}", "Salida": f"${price:,.0f}", "Neto": f"{neta:.2f}%", "Profit": f"${prof:.4f}"})
                     save_state(state)
-                    send_telegram_msg(f"🦁 VENTA: {neta:.2f}% | Profit: ${prof:.4f}")
+                    send_telegram_msg(f"🦁 VENTA: {neta:.2f}% | Ganancia: ${prof:.4f}")
                 except: nuevas_pos.append(pos)
             else: 
                 nuevas_pos.append(pos)
@@ -148,16 +145,17 @@ if data is not None:
         state["posiciones"] = nuevas_pos
         save_state(state)
 
-    # SITUACIÓN ACTUAL
     st.markdown(f'<div class="neon-panel"><div class="panel-header">SITUACIÓN ACTUAL</div><div class="panel-content"><div class="status-msg">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
 
-    # --- 8. HISTORIAL (ESTRICTO) ---
-    st.markdown('<div class="neon-panel"><div class="panel-header">📜 REGISTRO DE OPERACIONES</div><div class="panel-content">', unsafe_allow_html=True)
-    st.markdown('<div class="hist-header-row"><div>FECHA/HORA</div><div>ENTRADA</div><div>SALIDA</div><div>NETO</div><div>PROFIT</div></div>', unsafe_allow_html=True)
+    # --- 7. HISTORIAL FINAL (ESTRUCTURA SOLICITADA) ---
+    contenido = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 1px solid #DC143C; padding-bottom:5px;"><div>HORA</div><div>COMPRA</div><div>VENTA</div><div>NETO</div><div>GANANCIA</div></div>'
+    
+    # Mostramos las últimas 10, con la más reciente arriba
     for op in reversed(state["history"][-10:]):
-        c_n = "#00FF00" if "-" not in op["Neto"] else "#FF0000"
-        st.markdown(f'<div class="hist-item"><div>{op["Fecha"]}</div><div>{op["Entrada"]}</div><div>{op["Salida"]}</div><div style="color:{c_n}; font-weight:bold;">{op["Neto"]}</div><div style="color:{c_n};">{op["Profit"]}</div></div>', unsafe_allow_html=True)
-    st.markdown('</div></div>', unsafe_allow_html=True)
+        color_ganancia = "#00FF00" if "-" not in op["Neto"] else "#FF0000"
+        contenido += f'<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; padding: 8px 0; border-bottom: 1px solid #333; color: white; font-size: 13px;"><div>{op["Fecha"]}</div><div>{op["Entrada"]}</div><div>{op["Salida"]}</div><div style="color:{color_ganancia};">{op["Neto"]}</div><div style="color:{color_ganancia};">{op["Profit"]}</div></div>'
+
+    st.markdown(f'<div class="neon-panel"><div class="panel-header">📜 ÚLTIMAS OPERACIONES</div><div class="panel-content">{contenido}</div></div>', unsafe_allow_html=True)
 
 time.sleep(15)
 st.rerun()
