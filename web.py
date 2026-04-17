@@ -154,10 +154,10 @@ if data is not None:
     st.markdown(f'<div class="neon-panel"><div class="panel-header">SITUACIÓN ACTUAL</div><div class="panel-content"><div class="status-msg">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
 
     # --- 7. HISTORIAL FINAL ---
-    contenido_hist = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 2px solid #DC143C; padding-bottom:8px; font-size:14px;"><div>HORA</div><div>COMPRA</div><div>VENTA</div><div>NETO</div><div>GANANCIA</div></div>'
+    contenido_hist = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 3px solid #DC143C; padding-bottom:9px; font-size:15px;"><div>HORA</div><div>COMPRA</div><div>VENTA</div><div>NETO</div><div>GANANCIA</div></div>'
     for op in reversed(state["history"][-10:]):
         color_neto = "#00FF00" if "-" not in op["Neto"] else "#FF0000"
-        contenido_hist += f'<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; padding: 10px 0; border-bottom: 1px solid #222; color: white; font-size: 13px;"><div>{op["Fecha"]}</div><div>{op["Entrada"]}</div><div>{op["Salida"]}</div><div style="color:{color_neto}; font-weight:bold;">{op["Neto"]}</div><div style="color:{color_neto};">{op["Profit"]}</div></div>'
+        contenido_hist += f'<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; padding: 12px 0; border-bottom: 2px solid #222; color: white; font-size: 15px;"><div>{op["Fecha"]}</div><div>{op["Entrada"]}</div><div>{op["Salida"]}</div><div style="color:{color_neto}; font-weight:bold;">{op["Neto"]}</div><div style="color:{color_neto};">{op["Profit"]}</div></div>'
 
     st.markdown(f'<div class="neon-panel"><div class="panel-header">📜 ÚLTIMAS OPERACIONES</div><div class="panel-content">{contenido_hist}</div></div>', unsafe_allow_html=True)
 
