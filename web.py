@@ -7,7 +7,7 @@ import os
 import requests
 from datetime import datetime
 
-# --- 1. CONFIGURACIÓN TÉCNICA ---
+# --- 1. CONFIGURACIÓN TÉCNICA (SIN CAMBIOS) ---
 API_KEY_BTC = 'mx0vglJcyb3BIWHjDk' 
 SECRET_KEY_BTC = 'de1285d2de1945d2a66e502945c7324b'
 SYMBOL = 'BTC/USDT'
@@ -23,22 +23,13 @@ def send_telegram_msg(msg):
     except: pass
 
 def load_state():
-    # Capital inicial real: $10.077 | Ganancia inicial 0.077%: $0.00776
-    data_real = {
-        "capital_asignado": 10.077, 
-        "pnl_acumulado": 0.00776,
-        "posiciones": [],
-        "history": []
-    }
+    # Mantenemos los valores de $10.077 y el PNL real que ya traes
     if os.path.exists(STATE_FILE):
         try:
             with open(STATE_FILE, 'r') as f:
-                state = json.load(f)
-                # Seguridad: Asegurar que el capital base sea el correcto si el archivo se corrompe
-                if "capital_asignado" not in state: state["capital_asignado"] = 10.077
-                return state
+                return json.load(f)
         except: pass
-    return data_real
+    return {"capital_asignado": 10.077, "pnl_acumulado": 0.0776, "posiciones": [], "history": []}
 
 def save_state(state):
     try:
@@ -46,8 +37,8 @@ def save_state(state):
             json.dump(state, f, indent=4)
     except: pass
 
-# --- 2. ESTILOS (ESTRUCTURA VISUAL COMPLETA) ---
-st.set_page_config(page_title="LEONOS BTC | V32.6 REAL-DATA", layout="wide")
+# --- 2. ESTILOS ---
+st.set_page_config(page_title="LEONOS BTC | V32.9 CONTINUIDAD", layout="wide")
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@500;800&display=swap');
@@ -86,98 +77,94 @@ with st.sidebar:
     st.markdown('<p style="color:#DC143C; font-family:Orbitron; font-size:20px; font-weight:900;">🦁 LEONOS CONTROL</p>', unsafe_allow_html=True)
     bot_encendido = st.toggle('SISTEMA ACTIVO', value=True)
     st.markdown("---")
-    st.markdown("**ESTRATEGIA CAZADORA**")
-    target_cz = st.slider("Target (%)", 0.20, 2.0, 0.35, step=0.05, key="cz")
-    st.markdown("---")
-    st.markdown("**ESTRATEGIA ABEJA**")
-    target_ab = st.slider("Target (%)", 0.05, 0.50, 0.15, step=0.01, key="ab")
+    target_cz = st.slider("Target Cazadora (%)", 0.20, 2.0, 0.35, step=0.05)
+    target_ab = st.slider("Target Abeja (%)", 0.05, 0.50, 0.15, step=0.01)
 
-st.markdown('<h1 style="font-family:Orbitron; color:#DC143C;">🦁 LEONOS BTC V32.6</h1>', unsafe_allow_html=True)
+st.markdown('<h1 style="font-family:Orbitron; color:#DC143C;">🦁 LEONOS BTC V32.9</h1>', unsafe_allow_html=True)
 
 if data is not None:
     price, rsi, ema200 = data['close'], data['rsi'], data['ema200']
-    capital_total_real = state["capital_asignado"]
-    capital_invertido = sum(p['monto'] for p in state["posiciones"])
-    capital_disponible = capital_total_real - capital_invertido
+    
+    # Cálculos dinámicos
+    cap_inicial = state["capital_asignado"]
+    pnl_actual = state["pnl_acumulado"]
+    total_patrimonio = cap_inicial + (pnl_actual - 0.00776)
+    
+    cap_inv = sum(p['monto'] for p in state["posiciones"])
+    cap_disponible = total_patrimonio - cap_inv
 
     # DASHBOARD
     c1, c2, c3, c4 = st.columns(4)
     with c1: st.markdown(f'<div class="neon-panel"><div class="panel-header">PRECIO & EMA</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div style="color:#FFFF00; font-size:12px;">EMA200: ${ema200:,.0f}</div></div></div>', unsafe_allow_html=True)
-    with c2: st.markdown(f'<div class="neon-panel"><div class="panel-header">RSI OBJETIVO</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div style="color:#FFFF00; font-size:11px; font-weight:bold;">ABEJA: < 45 | CAZADORA: < 35</div></div></div>', unsafe_allow_html=True)
-    with c3: st.markdown(f'<div class="neon-panel"><div class="panel-header">SALDO DISPONIBLE</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${capital_disponible:.3f}</span><div style="color:#FFFF00; font-size:12px;">USDT LIBRES REALES</div></div></div>', unsafe_allow_html=True)
-    with c4: st.markdown(f'<div class="neon-panel"><div class="panel-header">GANANCIA TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div style="color:#00FF00; font-size:12px;">BASE: 0.077%</div></div></div>', unsafe_allow_html=True)
+    with c2: st.markdown(f'<div class="neon-panel"><div class="panel-header">RSI</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div style="color:#FFFF00; font-size:11px; font-weight:bold;">ABEJA < 45 | CAZADORA < 35</div></div></div>', unsafe_allow_html=True)
+    with c3: st.markdown(f'<div class="neon-panel"><div class="panel-header">SALDO LIBRE</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${cap_disponible:.3f}</span><div style="color:#FFFF00; font-size:12px;">DISPONIBLE USDT</div></div></div>', unsafe_allow_html=True)
+    with c4: st.markdown(f'<div class="neon-panel"><div class="panel-header">PNL TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${pnl_actual:.4f}</span><div style="color:#00FF00; font-size:12px;">BASE 0.077% OK</div></div></div>', unsafe_allow_html=True)
 
-    # --- 5. TARJETAS DE OPERACIÓN ---
+    # --- 5. GESTIÓN DE POSICIÓN ABIERTA (CRÍTICO) ---
     if state["posiciones"]:
         st.markdown('<div style="text-align: center; margin-bottom: 20px;">', unsafe_allow_html=True)
         for pos in state["posiciones"]:
-            pct = target_ab if pos['tipo'] == "Abeja" else target_cz
+            pct_v = target_ab if pos['tipo'] == "Abeja" else target_cz
             st.markdown(f"""
                 <div class="burbuja b-entrada">[{pos['tipo']}] ENTRADA: ${pos['precio']:,.1f}</div>
-                <div class="burbuja b-venta">TARGET: ${pos['precio']*(1+pct/100):,.1f}</div>
+                <div class="burbuja b-venta">TARGET: ${pos['precio']*(1+pct_v/100):,.1f}</div>
                 <div class="burbuja b-stop">STOP: ${pos['precio']*0.975:,.1f}</div><br>
             """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 6. LÓGICA DE TRADING ESTRICTA ---
-    log_msg = "Monitoreando señales reales..."
+    # --- 6. LÓGICA DE TRADING ---
+    log_msg = "Vigilando operación activa..."
     if bot_encendido:
-        ya_abeja = any(p['tipo'] == "Abeja" for p in state["posiciones"])
-        ya_cz = any(p['tipo'] == "Cazadora" for p in state["posiciones"])
+        ya_posicion = len(state["posiciones"]) > 0
         
-        # COMPRA
-        t_compra, m_compra = None, 0
-        if not ya_abeja and rsi < 45 and price > ema200 and capital_disponible > 10:
-            t_compra, m_compra = "Abeja", capital_disponible * 0.5
-        elif not ya_cz and rsi < 35 and capital_disponible > 10:
-            t_compra, m_compra = "Cazadora", capital_disponible
+        # Solo busca nuevas compras si hay saldo (50% del total real)
+        monto_proxima = total_patrimonio * 0.50
+        
+        if not ya_posicion:
+            t_compra = None
+            if rsi < 45 and price > ema200: t_compra = "Abeja"
+            elif rsi < 35: t_compra = "Cazadora"
 
-        if t_compra:
-            try:
-                # ORDEN REAL EN MEXC
-                exchange.create_market_buy_order(SYMBOL, m_compra / price)
-                # GUARDADO SOLO TRAS ÉXITO
-                state["posiciones"].append({"precio": price, "monto": m_compra, "tipo": t_compra})
-                pct_m = target_ab if t_compra == "Abeja" else target_cz
-                msg = f"🦁 *LEONOS COMPRA REAL*\nSímbolo: BTC\nTipo: {t_compra.upper()}\nEntrada: ${price:,.2f}\nTarget: ${price*(1+pct_m/100):,.2f}\nStop: ${price*0.975:,.2f}"
-                send_telegram_msg(msg)
-                save_state(state)
-            except Exception as e:
-                send_telegram_msg(f"⚠️ FALLO EN COMPRA: {str(e)}")
-
-        # VENTA
-        nuevas_pos = []
-        for pos in state["posiciones"]:
-            pct_v = target_ab if pos['tipo'] == "Abeja" else target_cz
-            neta = ((price - pos['precio']) / pos['precio']) * 100
-            if neta >= pct_v or neta <= -2.5:
+            if t_compra and cap_disponible >= monto_proxima:
                 try:
-                    # VENTA REAL EN MEXC
-                    exchange.create_market_sell_order(SYMBOL, pos['monto'] / pos['precio'])
-                    prof = (pos['monto'] * neta / 100)
-                    state["pnl_acumulado"] += prof
-                    state["capital_asignado"] += prof
-                    state["history"].append({"Fecha": datetime.now().strftime("%d/%m %H:%M"), "Entrada": f"${pos['precio']:,.0f}", "Salida": f"${price:,.0f}", "Neto": f"{neta:.2f}%", "Profit": f"${prof:.4f}"})
-                    send_telegram_msg(f"💰 *LEONOS VENTA REAL*\nSímbolo: BTC\nResultado: {neta:.2f}%\nProfit: +${prof:.4f}")
+                    exchange.create_market_buy_order(SYMBOL, monto_proxima / price)
+                    state["posiciones"].append({"precio": price, "monto": monto_proxima, "tipo": t_compra})
+                    send_telegram_msg(f"🦁 *COMPRA REAL CONFIRMADA*\n{t_compra.upper()} | Entrada: ${price:,.2f}")
                     save_state(state)
                 except Exception as e:
-                    send_telegram_msg(f"⚠️ FALLO EN VENTA: {str(e)}")
-                    nuevas_pos.append(pos)
+                    send_telegram_msg(f"⚠️ ERROR COMPRA: {str(e)}")
+
+        # GESTIÓN DE SALIDA (Aplica a la operación que ya tienes abierta)
+        nuevas = []
+        for pos in state["posiciones"]:
+            pct_salida = target_ab if pos['tipo'] == "Abeja" else target_cz
+            ganancia_neta = ((price - pos['precio']) / pos['precio']) * 100
+            
+            if ganancia_neta >= pct_salida or ganancia_neta <= -2.5:
+                try:
+                    exchange.create_market_sell_order(SYMBOL, pos['monto'] / pos['precio'])
+                    profit_usdt = (pos['monto'] * ganancia_neta / 100)
+                    state["pnl_acumulado"] += profit_usdt
+                    state["history"].append({"Fecha": datetime.now().strftime("%d/%m %H:%M"), "Entrada": f"${pos['precio']:,.0f}", "Salida": f"${price:,.0f}", "Neto": f"{ganancia_neta:.2f}%", "Profit": f"${profit_usdt:.4f}"})
+                    send_telegram_msg(f"💰 *VENTA REAL CONFIRMADA*\nResultado: {ganancia_neta:.2f}%\nProfit: +${profit_usdt:.4f}")
+                    save_state(state)
+                except Exception as e:
+                    send_telegram_msg(f"⚠️ ERROR VENTA: {str(e)}")
+                    nuevas.append(pos)
             else:
-                nuevas_pos.append(pos)
-                log_msg = f"Operación [{pos['tipo']}] en curso: {neta:.2f}%"
-        state["posiciones"] = nuevas_pos
+                nuevas.append(pos)
+                log_msg = f"{pos['tipo']} en curso: {ganancia_neta:.2f}%"
+        state["posiciones"] = nuevas
         save_state(state)
 
-    # SITUACIÓN ACTUAL (Mantenida)
     st.markdown(f'<div class="neon-panel"><div class="panel-header">SITUACIÓN ACTUAL</div><div class="panel-content"><div class="status-msg">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
 
-    # --- 7. HISTORIAL (Mantenido) ---
-    contenido_hist = '<div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 3px solid #DC143C; padding-bottom:8px; font-size:14px;"><div>FECHA/HORA</div><div>COMPRA</div><div>VENTA</div><div>NETO</div><div>PROFIT</div></div>'
-    for op in reversed(state["history"][-10:]):
-        color_neto = "#00FF00" if "-" not in op["Neto"] else "#FF0000"
-        contenido_hist += f'<div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr; padding: 10px 0; border-bottom: 1px solid #222; color: white; font-size: 13px;"><div>{op["Fecha"]}</div><div>{op["Entrada"]}</div><div>{op["Salida"]}</div><div style="color:{color_neto}; font-weight:bold;">{op["Neto"]}</div><div style="color:{color_neto};">{op["Profit"]}</div></div>'
-    st.markdown(f'<div class="neon-panel"><div class="panel-header">📜 ÚLTIMAS OPERACIONES</div><div class="panel-content">{contenido_hist}</div></div>', unsafe_allow_html=True)
+    # --- 7. HISTORIAL ---
+    hist_html = '<div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 2px solid #DC143C; padding-bottom:8px;"><div>HORA</div><div>IN</div><div>OUT</div><div>%</div><div>USDT</div></div>'
+    for h in reversed(state["history"][-10:]):
+        c = "#00FF00" if "-" not in h["Neto"] else "#FF0000"
+        hist_html += f'<div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr; padding: 8px 0; border-bottom: 1px solid #222;"><div>{h["Fecha"]}</div><div>{h["Entrada"]}</div><div>{h["Salida"]}</div><div style="color:{c}; font-weight:bold;">{h["Neto"]}</div><div style="color:{c};">{h["Profit"]}</div></div>'
+    st.markdown(f'<div class="neon-panel"><div class="panel-header">📜 HISTORIAL DE OPERACIONES REALES</div><div class="panel-content">{hist_html}</div></div>', unsafe_allow_html=True)
 
 time.sleep(15)
 st.rerun()
