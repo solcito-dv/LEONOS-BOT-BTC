@@ -23,10 +23,10 @@ def send_telegram_msg(msg):
     except: pass
 
 def load_state():
-    # DATOS REALES SOLICITADOS
+    # DATOS EXACTOS SOLICITADOS: $10.077 capital y $0.0077 ganancia
     data_real = {
         "capital_asignado": 10.077, 
-        "pnl_acumulado": 0.0077, # El 0.077% inicial
+        "pnl_acumulado": 0.0077,
         "posiciones": [],
         "history": []
     }
@@ -45,7 +45,7 @@ def save_state(state):
     except: pass
 
 # --- 2. ESTILOS ---
-st.set_page_config(page_title="LEONOS BTC | V32.1", layout="wide")
+st.set_page_config(page_title="LEONOS BTC | V32.2", layout="wide")
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@500;800&display=swap');
@@ -54,6 +54,7 @@ st.markdown("""
     .panel-header { background: rgba(220, 20, 60, 0.2); padding: 12px; border-bottom: 1px solid #DC143C; color: #FFFF00 !important; font-family: 'Orbitron'; font-size: 14px; font-weight: 900; }
     .panel-content { padding: 20px; }
     .price-main { color: #FFFFFF; font-size: 42px; font-weight: 900; font-family: 'Orbitron'; line-height: 1; }
+    .status-msg { color: #FFFFFF; font-style: italic; font-size: 15px; border-left: 4px solid #FFFF00; padding-left: 15px; }
     .burbuja { padding: 12px 20px; border-radius: 30px; font-weight: 800; font-size: 13px; display: inline-block; margin: 8px; border: 1px solid rgba(255,255,255,0.2); }
     .b-entrada { background: #1E90FF; color: white; }
     .b-venta { background: #228B22; color: white; }
@@ -89,7 +90,7 @@ with st.sidebar:
     st.markdown("**ESTRATEGIA ABEJA**")
     target_abeja = st.slider("Target Abeja (%)", 0.05, 0.50, 0.15, step=0.01)
 
-st.markdown('<h1 style="font-family:Orbitron; color:#DC143C;">🦁 LEONOS BTC V32.1</h1>', unsafe_allow_html=True)
+st.markdown('<h1 style="font-family:Orbitron; color:#DC143C;">🦁 LEONOS BTC V32.2</h1>', unsafe_allow_html=True)
 
 if data is not None:
     price, rsi, ema200 = data['close'], data['rsi'], data['ema200']
@@ -118,7 +119,8 @@ if data is not None:
             """, unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- 6. LÓGICA ---
+    # --- 6. LÓGICA Y SITUACIÓN ACTUAL ---
+    log_msg = "Monitoreando señales..."
     if bot_encendido:
         # COMPRAS
         ya_abeja = any(p['tipo'] == "Abeja" for p in state["posiciones"])
@@ -130,7 +132,7 @@ if data is not None:
             send_telegram_msg(f"🐝 ABEJA COMPRÓ: ${price:,.0f}")
             save_state(state)
         elif not ya_cazadora and rsi < 35 and capital_disponible > 5:
-            monto = capital_disponible # Usa el resto
+            monto = capital_disponible 
             state["posiciones"].append({"precio": price, "monto": monto, "tipo": "Cazadora"})
             send_telegram_msg(f"🦁 CAZADORA COMPRÓ: ${price:,.0f}")
             save_state(state)
@@ -152,11 +154,15 @@ if data is not None:
                     send_telegram_msg(f"💰 VENTA [{pos.get('tipo')}]: {neta:.2f}%")
                     save_state(state)
                 except: nuevas_pos.append(pos)
-            else: nuevas_pos.append(pos)
+            else:
+                nuevas_pos.append(pos)
+                log_msg = f"Operación [{pos.get('tipo')}] activa: {neta:.2f}%"
         state["posiciones"] = nuevas_pos
         save_state(state)
 
-    # --- 7. HISTORIAL (SIN REPETIDOS) ---
+    st.markdown(f'<div class="neon-panel"><div class="panel-header">SITUACIÓN ACTUAL</div><div class="panel-content"><div class="status-msg">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
+
+    # --- 7. HISTORIAL ---
     contenido_hist = '<div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 3px solid #DC143C; padding-bottom:8px; font-size:14px;"><div>FECHA/HORA</div><div>COMPRA</div><div>VENTA</div><div>NETO</div><div>PROFIT</div></div>'
     for op in reversed(state["history"][-10:]):
         color_neto = "#00FF00" if "-" not in op["Neto"] else "#FF0000"
