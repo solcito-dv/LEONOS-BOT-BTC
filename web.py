@@ -23,6 +23,7 @@ def send_telegram_msg(msg):
     except: pass
 
 def load_state():
+    # DATOS PROPORCIONADOS POR EL USUARIO (INYECCIÓN DE EMERGENCIA PARA RECUPERACIÓN)
     data_recuperada = {
         "pnl_acumulado": 0.0176,
         "posiciones": [
@@ -33,10 +34,12 @@ def load_state():
             {"Fecha": "Anterior", "Entrada": "Varias", "Salida": "Venta Ejecutada", "Neto": "Profit", "Profit": "$0.0176"}
         ]
     }
+
     if os.path.exists(STATE_FILE):
         try:
             with open(STATE_FILE, 'r') as f:
                 state = json.load(f)
+                # Si el archivo está vacío o sin datos, usamos la inyección de arriba
                 if not state.get("posiciones") and not state.get("pnl_acumulado"):
                     return data_recuperada
                 return state
@@ -72,7 +75,7 @@ st.markdown("""
 
 # --- 3. INICIO ---
 state = load_state()
-save_state(state)
+save_state(state) # Forzamos el guardado de los datos inyectados inmediatamente
 
 def fetch_all():
     try:
@@ -114,21 +117,18 @@ if data is not None:
     with c3: st.markdown(f'<div class="neon-panel"><div class="panel-header">CAPITAL EN USO</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${capital_en_uso:.2f}</span><div style="color:#FFFF00; font-size:12px; font-weight:bold;">EN OPERACIÓN</div></div></div>', unsafe_allow_html=True)
     with c4: st.markdown(f'<div class="neon-panel"><div class="panel-header">PNL TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div style="color:#00FF00; font-size:12px; font-weight:bold;">GANANCIA ACUMULADA</div></div></div>', unsafe_allow_html=True)
 
-    # --- 5. TARJETAS DE OPERACIÓN ACTIVA (FILA ÚNICA) ---
+    # --- 5. TARJETAS DE OPERACIÓN ACTIVA ---
     if state["posiciones"]:
-        # Creamos una columna por cada posición para que queden una al lado de la otra
-        cols_tarjetas = st.columns(len(state["posiciones"]))
+        st.markdown('<div style="text-align: center; margin-bottom: 20px;">', unsafe_allow_html=True)
         for i, pos in enumerate(state["posiciones"]):
             v_target = pos['precio'] * (1 + target_pct/100)
             v_stop = pos['precio'] * 0.975
-            with cols_tarjetas[i]:
-                st.markdown(f"""
-                    <div style="text-align: center; background: rgba(255,255,255,0.05); padding: 10px; border-radius: 15px; border: 1px solid #333;">
-                        <div class="burbuja b-entrada" style="display:block; margin: 5px auto;">COMPRA {i+1}: ${pos['precio']:,.0f}</div>
-                        <div class="burbuja b-venta" style="display:block; margin: 5px auto;">VENTA: ${v_target:,.0f}</div>
-                        <div class="burbuja b-stop" style="display:block; margin: 5px auto;">STOP: ${v_stop:,.0f}</div>
-                    </div>
-                """, unsafe_allow_html=True)
+            st.markdown(f"""
+                <div class="burbuja b-entrada">COMPRA {i+1}: ${pos['precio']:,.0f} (Vol: ${pos['monto']})</div>
+                <div class="burbuja b-venta">VENDER EN: ${v_target:,.0f}</div>
+                <div class="burbuja b-stop">STOP LOSS: ${v_stop:,.0f}</div><br>
+            """, unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # --- 6. LÓGICA DE TRADING ---
     log_msg = "Monitoreando señales..."
@@ -154,10 +154,10 @@ if data is not None:
     st.markdown(f'<div class="neon-panel"><div class="panel-header">SITUACIÓN ACTUAL</div><div class="panel-content"><div class="status-msg">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
 
     # --- 7. HISTORIAL FINAL ---
-    contenido_hist = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 3px solid #DC143C; padding-bottom:8px; font-size:15px;"><div>HORA</div><div>COMPRA</div><div>VENTA</div><div>NETO</div><div>GANANCIA</div></div>'
+    contenido_hist = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 3px solid #DC143C; padding-bottom:9px; font-size:13px;"><div>HORA</div><div>COMPRA</div><div>VENTA</div><div>NETO</div><div>GANANCIA</div></div>'
     for op in reversed(state["history"][-10:]):
         color_neto = "#00FF00" if "-" not in op["Neto"] else "#FF0000"
-        contenido_hist += f'<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; padding: 11px 0; border-bottom: 2px solid #222; color: white; font-size: 14px;"><div>{op["Fecha"]}</div><div>{op["Entrada"]}</div><div>{op["Salida"]}</div><div style="color:{color_neto}; font-weight:bold;">{op["Neto"]}</div><div style="color:{color_neto};">{op["Profit"]}</div></div>'
+        contenido_hist += f'<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; padding: 10px 0; border-bottom: 1px solid #222; color: white; font-size: 13px;"><div>{op["Fecha"]}</div><div>{op["Entrada"]}</div><div>{op["Salida"]}</div><div style="color:{color_neto}; font-weight:bold;">{op["Neto"]}</div><div style="color:{color_neto};">{op["Profit"]}</div></div>'
 
     st.markdown(f'<div class="neon-panel"><div class="panel-header">📜 ÚLTIMAS OPERACIONES</div><div class="panel-content">{contenido_hist}</div></div>', unsafe_allow_html=True)
 
