@@ -2,5 +2,6 @@
     "capital_asignado": 10.0,
     "pnl_acumulado": 0.0,
     "posiciones": [],
-    "history": []
+    "history": [],
+    "last_cz_sell_time": 0
 }
