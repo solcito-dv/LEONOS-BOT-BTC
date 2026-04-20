@@ -1,17 +1,6 @@
 {
     "capital_asignado": 10.0,
-    "pnl_acumulado": 0.1314,
-    "posiciones": [
-        {
-            "precio": 75634.0,
-            "monto": 9.81,
-            "tipo": "Recuperación"
-        }
-    ],
-    "history": [
-        {"Fecha": "20/04 17:42", "Entrada": "$75,634", "Salida": "$75,847", "Neto": "0.28%", "Profit": "$0.0143"},
-        {"Fecha": "20/04 17:18", "Entrada": "$75,634", "Salida": "$75,850", "Neto": "0.29%", "Profit": "$0.0145"},
-        {"Fecha": "20/04 15:27", "Entrada": "$75,464", "Salida": "$75,697", "Neto": "0.31%", "Profit": "$0.0156"},
-        {"Fecha": "20/04 14:20", "Entrada": "$75,362", "Salida": "$75,500", "Neto": "0.18%", "Profit": "$0.0093"}
-    ]
+    "pnl_acumulado": 0.0,
+    "posiciones": [],
+    "history": []
 }
