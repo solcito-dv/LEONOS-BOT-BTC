@@ -28,10 +28,8 @@ def load_state():
         try:
             with open(STATE_FILE, 'r') as f:
                 data = json.load(f)
-                # Asegurar que todas las llaves existan para que no de error
                 for key, value in defaults.items():
-                    if key not in data:
-                        data[key] = value
+                    if key not in data: data[key] = value
                 return data
         except: return defaults
     return defaults
@@ -43,7 +41,7 @@ def save_state(state):
     except: pass
 
 # --- 2. ESTILOS ---
-st.set_page_config(page_title="LEONOS BTC | V33.3", layout="wide")
+st.set_page_config(page_title="LEONOS BTC | V33.4", layout="wide")
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@500;800&display=swap');
@@ -86,12 +84,10 @@ with st.sidebar:
     target_cz = st.slider("Target Cazadora (%)", 0.20, 2.0, 0.35, step=0.05)
     target_ab = st.slider("Target Abeja (%)", 0.05, 0.50, 0.15, step=0.01)
 
-st.markdown('<h1 style="font-family:Orbitron; color:#DC143C;">🦁 LEONOS BTC V33.3</h1>', unsafe_allow_html=True)
+st.markdown('<h1 style="font-family:Orbitron; color:#DC143C;">🦁 LEONOS BTC V33.4</h1>', unsafe_allow_html=True)
 
 if data is not None:
     price, rsi, ema200 = data['close'], data['rsi'], data['ema200']
-    
-    # CORRECCIÓN DE VARIABLES: Usar exactamente lo que está en el JSON
     total_patrimonio = float(state.get("capital_asignado", 10.0)) + float(state.get("pnl_acumulado", 0.0))
     cap_inv = sum(float(p['monto']) for p in state["posiciones"])
     cap_disponible = total_patrimonio - cap_inv
@@ -99,7 +95,10 @@ if data is not None:
     # DASHBOARD
     c1, c2, c3, c4 = st.columns(4)
     with c1: st.markdown(f'<div class="neon-panel"><div class="panel-header">PRECIO & EMA</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div style="color:#FFFF00; font-size:12px;">EMA200: ${ema200:,.0f}</div></div></div>', unsafe_allow_html=True)
-    with c2: st.markdown(f'<div class="neon-panel"><div class="panel-header">ESTRATEGIA RSI</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div style="color:#FFFF00; font-size:11px; font-weight:bold;">ABEJA: {target_ab}% | CAZADORA: {target_cz}%</div></div></div>', unsafe_allow_html=True)
+    
+    # Cuadro RSI con objetivos de compra solicitados
+    with c2: st.markdown(f'<div class="neon-panel"><div class="panel-header">ESTRATEGIA RSI</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div style="color:#FFFF00; font-size:11px; font-weight:bold;">OBJETIVO ABEJA: < 45 | CAZADORA: < 35</div></div></div>', unsafe_allow_html=True)
+    
     with c3: st.markdown(f'<div class="neon-panel"><div class="panel-header">SALDO LIBRE</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${cap_disponible:.3f}</span><div style="color:#FFFF00; font-size:12px;">DISPONIBLE USDT</div></div></div>', unsafe_allow_html=True)
     with c4: st.markdown(f'<div class="neon-panel"><div class="panel-header">GANANCIA ACUMULADA</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div style="color:#00FF00; font-size:12px;">PNL TOTAL</div></div></div>', unsafe_allow_html=True)
 
@@ -126,7 +125,6 @@ if data is not None:
             now_ts = time.time()
             cooldown_ok = (now_ts - state.get("last_cz_sell_time", 0)) > 600
             
-            # Filtro de Pico Silencioso
             if price < (p_pico * 0.997):
                 if rsi < 45 and price > ema200 and not any(p['tipo'] == "Abeja" for p in state["posiciones"]):
                     t_compra = "Abeja"
@@ -161,7 +159,7 @@ if data is not None:
                     if pos['tipo'] == "Cazadora": state["last_cz_sell_time"] = time.time()
                     state["history"].append({"Fecha": datetime.now().strftime("%d/%m %H:%M"), "Entrada": f"${pos['precio']:,.0f}", "Salida": f"${price:,.0f}", "%": f"{neta:.2f}%", "Profit": f"${profit:.4f}"})
                     save_state(state)
-                    send_telegram_msg(f"💰 *VENTA: {pos['tipo'].upper()}*\nNeto: {neta:.2f}%\nProfit: +${profit:.4f}")
+                    send_telegram_msg(f"💰 *VENTA: {pos['tipo'].upper()}*\nResultado: {neta:.2f}%\nProfit: +${profit:.4f}")
                 except Exception as e:
                     send_telegram_msg(f"❌ ERROR VENTA: {str(e)}")
                     nuevas.append(pos)
