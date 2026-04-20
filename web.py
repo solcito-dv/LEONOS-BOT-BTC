@@ -23,14 +23,18 @@ def send_telegram_msg(msg):
     except: pass
 
 def load_state():
+    defaults = {"capital_asignado": 10.0, "pnl_acumulado": 0.0, "posiciones": [], "history": [], "last_cz_sell_time": 0}
     if os.path.exists(STATE_FILE):
         try:
             with open(STATE_FILE, 'r') as f:
                 data = json.load(f)
-                if "last_cz_sell_time" not in data: data["last_cz_sell_time"] = 0
+                # Asegurar que todas las llaves existan para que no de error
+                for key, value in defaults.items():
+                    if key not in data:
+                        data[key] = value
                 return data
-        except: pass
-    return {"capital_asignado": 10.0, "pnl_acumulado": 0.0, "posiciones": [], "history": [], "last_cz_sell_time": 0}
+        except: return defaults
+    return defaults
 
 def save_state(state):
     try:
@@ -39,7 +43,7 @@ def save_state(state):
     except: pass
 
 # --- 2. ESTILOS ---
-st.set_page_config(page_title="LEONOS BTC | V33.3 FINAL", layout="wide")
+st.set_page_config(page_title="LEONOS BTC | V33.3", layout="wide")
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@500;800&display=swap');
@@ -68,11 +72,11 @@ def fetch_all():
         gain = (delta.where(delta > 0, 0)).rolling(14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
         df['rsi'] = 100 - (100 / (1 + (gain / loss)))
-        pico_24h = df['high'].max()
-        return df.iloc[-1], pico_max, mexc
+        p_max = df['high'].max()
+        return df.iloc[-1], p_max, mexc
     except: return None, None, None
 
-data, pico_max, exchange = fetch_all()
+data, p_pico, exchange = fetch_all()
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
@@ -81,14 +85,15 @@ with st.sidebar:
     st.markdown("---")
     target_cz = st.slider("Target Cazadora (%)", 0.20, 2.0, 0.35, step=0.05)
     target_ab = st.slider("Target Abeja (%)", 0.05, 0.50, 0.15, step=0.01)
-    st.info("Cooldown Cazadora: 10 min activo")
 
 st.markdown('<h1 style="font-family:Orbitron; color:#DC143C;">🦁 LEONOS BTC V33.3</h1>', unsafe_allow_html=True)
 
 if data is not None:
     price, rsi, ema200 = data['close'], data['rsi'], data['ema200']
-    total_patrimonio = state["capital_asignado"] + state["pnl_acumulado"]
-    cap_inv = sum(p['monto'] for p in state["posiciones"])
+    
+    # CORRECCIÓN DE VARIABLES: Usar exactamente lo que está en el JSON
+    total_patrimonio = float(state.get("capital_asignado", 10.0)) + float(state.get("pnl_acumulado", 0.0))
+    cap_inv = sum(float(p['monto']) for p in state["posiciones"])
     cap_disponible = total_patrimonio - cap_inv
 
     # DASHBOARD
@@ -114,32 +119,31 @@ if data is not None:
     log_msg = "SISTEMA PAUSADO"
     if bot_encendido:
         log_msg = "Analizando mercado..."
-        # Buffer de seguridad para comisiones (0.05 USDT)
-        monto_operacion = (total_patrimonio * 0.50) - 0.05
+        monto_op = (total_patrimonio * 0.50) - 0.05
         
-        # COMPRA
         if len(state["posiciones"]) < 2:
             t_compra = None
-            # Tiempo actual para el Cooldown
             now_ts = time.time()
-            cooldown_ok = (now_ts - state.get("last_cz_sell_time", 0)) > 600 # 10 minutos
+            cooldown_ok = (now_ts - state.get("last_cz_sell_time", 0)) > 600
             
-            if rsi < 45 and price > ema200 and not any(p['tipo'] == "Abeja" for p in state["posiciones"]):
-                t_compra = "Abeja"
-            elif rsi < 35 and cooldown_ok and not any(p['tipo'] == "Cazadora" for p in state["posiciones"]):
-                t_compra = "Cazadora"
+            # Filtro de Pico Silencioso
+            if price < (p_pico * 0.997):
+                if rsi < 45 and price > ema200 and not any(p['tipo'] == "Abeja" for p in state["posiciones"]):
+                    t_compra = "Abeja"
+                elif rsi < 35 and cooldown_ok and not any(p['tipo'] == "Cazadora" for p in state["posiciones"]):
+                    t_compra = "Cazadora"
 
-            if t_compra and cap_disponible >= (monto_operacion + 0.05):
+            if t_compra and cap_disponible >= (monto_op + 0.05):
                 try:
-                    exchange.create_market_buy_order(SYMBOL, monto_operacion / price)
-                    state["posiciones"].append({"precio": price, "monto": monto_operacion, "tipo": t_compra, "max_alcanzado": price})
+                    exchange.create_market_buy_order(SYMBOL, monto_op / price)
+                    state["posiciones"].append({"precio": price, "monto": monto_op, "tipo": t_compra, "max_alcanzado": price})
                     save_state(state)
                     t_pct = target_ab if t_compra == "Abeja" else target_cz
-                    send_telegram_msg(f"🦁 *COMPRA: {t_compra.upper()}*\nEntrada: ${price:,.2f}\nSalida: {t_pct}%\nStop: ${price*0.985:,.2f}")
+                    send_telegram_msg(f"🦁 *COMPRA: {t_compra.upper()}*\nEntrada: ${price:,.2f}\nTarget: {t_pct}%\nStop: ${price*0.985:,.1f}")
                 except Exception as e:
                     send_telegram_msg(f"❌ ERROR COMPRA: {str(e)}")
 
-        # VENTA (STOP DINÁMICO)
+        # VENTA
         nuevas = []
         for pos in state["posiciones"]:
             pct_target = target_ab if pos['tipo'] == "Abeja" else target_cz
@@ -157,7 +161,7 @@ if data is not None:
                     if pos['tipo'] == "Cazadora": state["last_cz_sell_time"] = time.time()
                     state["history"].append({"Fecha": datetime.now().strftime("%d/%m %H:%M"), "Entrada": f"${pos['precio']:,.0f}", "Salida": f"${price:,.0f}", "%": f"{neta:.2f}%", "Profit": f"${profit:.4f}"})
                     save_state(state)
-                    send_telegram_msg(f"💰 *VENTA: {pos['tipo'].upper()}*\nResultado: {neta:.2f}%\nGanancia: +${profit:.4f}")
+                    send_telegram_msg(f"💰 *VENTA: {pos['tipo'].upper()}*\nNeto: {neta:.2f}%\nProfit: +${profit:.4f}")
                 except Exception as e:
                     send_telegram_msg(f"❌ ERROR VENTA: {str(e)}")
                     nuevas.append(pos)
@@ -167,7 +171,7 @@ if data is not None:
         state["posiciones"] = nuevas
         save_state(state)
 
-    # --- 7. RENDERIZADO ---
+    # --- 7. RENDERIZADO FINAL ---
     st.markdown(f'<div class="neon-panel"><div class="panel-header">ESTADO DEL SISTEMA</div><div class="panel-content"><div class="status-msg">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
     
     hist_html = '<div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 2px solid #DC143C; padding-bottom:8px;"><div>HORA</div><div>ENTRADA</div><div>SALIDA</div><div>%</div><div>GANANCIA</div></div>'
