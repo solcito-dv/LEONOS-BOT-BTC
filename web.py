@@ -38,8 +38,8 @@ def save_state(state):
             json.dump(state, f, indent=4)
     except: pass
 
-# --- 2. ESTILOS ---
-st.set_page_config(page_title="LEONOS BTC | V34.2", layout="wide")
+# --- 2. ESTILOS (NEÓN ORIGINAL) ---
+st.set_page_config(page_title="LEONOS BTC | V34.3", layout="wide")
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@500;800&display=swap');
@@ -69,19 +69,22 @@ def fetch_all():
         gain = (delta.where(delta > 0, 0)).rolling(14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
         df['rsi'] = 100 - (100 / (1 + (gain / loss)))
-        return df.iloc[-1], df['high'].max(), mexc
-    except: return None, None, None
+        return df.iloc[-1], mexc
+    except: return None, None
 
-data, p_pico, exchange = fetch_all()
+data, exchange = fetch_all()
 
+# --- 3. SIDEBAR (RECUPERADO) ---
 with st.sidebar:
     st.markdown('<p style="color:#DC143C; font-family:Orbitron; font-size:20px; font-weight:900;">🦁 LEONOS CONTROL</p>', unsafe_allow_html=True)
     bot_encendido = st.toggle('SISTEMA ACTIVO', value=True)
     st.markdown("---")
-    target_obj = st.slider("Target Objetivo (%)", 0.10, 1.0, 0.40, step=0.05)
-    gap_v = 0.02 # Gatillo rápido
+    # RECUPERAMOS LOS SLIDERS QUE PEDISTE
+    target_ab = st.slider("Target Abeja (%)", 0.05, 0.50, 0.15, step=0.01)
+    target_cz = st.slider("Target Cazadora (%)", 0.10, 1.0, 0.40, step=0.05)
+    gap_v = 0.02 # Gatillo dinámico de 0.02%
 
-st.markdown('<h1 style="font-family:Orbitron; color:#DC143C;">🦁 LEONOS BTC V34.2</h1>', unsafe_allow_html=True)
+st.markdown('<h1 style="font-family:Orbitron; color:#DC143C;">🦁 LEONOS BTC V34.3</h1>', unsafe_allow_html=True)
 
 if data is not None:
     price, rsi, ema9, ema200 = data['close'], data['rsi'], data['ema9'], data['ema200']
@@ -89,20 +92,21 @@ if data is not None:
     cap_inv = sum(float(p['monto']) for p in state["posiciones"])
     cap_disponible = total_patrimonio - cap_inv
 
-    # --- DASHBOARD ---
+    # --- DASHBOARD (CON EMA 200 REINTEGRADA) ---
     c1, c2, c3, c4 = st.columns(4)
-    with c1: st.markdown(f'<div class="neon-panel"><div class="panel-header">PRECIO & EMA 9</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div style="color:#FFFF00; font-size:12px;">CONFIRMACIÓN ACTIVA</div></div></div>', unsafe_allow_html=True)
+    with c1: st.markdown(f'<div class="neon-panel"><div class="panel-header">PRECIO & EMA 9/200</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div style="color:#FFFF00; font-size:12px;">EMA 9: ${ema9:,.0f} | EMA 200: ${ema200:,.0f}</div></div></div>', unsafe_allow_html=True)
     with c2: st.markdown(f'<div class="neon-panel"><div class="panel-header">ESTRATEGIA RSI</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div style="color:#FFFF00; font-size:11px; font-weight:bold;">ABEJA < 40 | CAZA < 30</div></div></div>', unsafe_allow_html=True)
     with c3: st.markdown(f'<div class="neon-panel"><div class="panel-header">SALDO LIBRE</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${cap_disponible:.3f}</span><div style="color:#FFFF00; font-size:12px;">CAPITAL: $10.0</div></div></div>', unsafe_allow_html=True)
-    with c4: st.markdown(f'<div class="neon-panel"><div class="panel-header">GANANCIA TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div style="color:#00FF00; font-size:12px;">PNL</div></div></div>', unsafe_allow_html=True)
+    with c4: st.markdown(f'<div class="neon-panel"><div class="panel-header">GANANCIA TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div style="color:#00FF00; font-size:12px;">PNL ACUMULADO</div></div></div>', unsafe_allow_html=True)
 
     if state["posiciones"]:
         st.markdown('<div style="text-align: center; margin-bottom: 20px;">', unsafe_allow_html=True)
         for pos in state["posiciones"]:
-            st.markdown(f'<div class="burbuja b-entrada">[{pos["tipo"]}] ${pos["precio"]:,.1f}</div><div class="burbuja b-venta">GATILLO: {target_obj}%</div><br>', unsafe_allow_html=True)
+            t_obj = target_ab if pos['tipo'] == "Abeja" else target_cz
+            st.markdown(f'<div class="burbuja b-entrada">[{pos["tipo"]}] ${pos["precio"]:,.1f}</div><div class="burbuja b-venta">TARGET: {t_obj}%</div><br>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- LÓGICA DE COMPRA ---
+    # --- LÓGICA DE COMPRA (CON EMA 9) ---
     log_msg = "SISTEMA EN PAUSA"
     if bot_encendido:
         log_msg = "Analizando mercado..."
@@ -130,20 +134,24 @@ if data is not None:
                     send_telegram_msg(f"🦁 COMPRA {t_compra}: ${price:,.2f}")
                 except: pass
 
-    # --- LÓGICA DE VENTA ---
+    # --- LÓGICA DE VENTA (BE + TP DINÁMICO) ---
     nuevas = []
     for pos in state["posiciones"]:
         neta = ((price - pos['precio']) / pos['precio']) * 100
         if price > pos.get('max_alc', pos['precio']): pos['max_alc'] = price
         
+        # 1. Breakeven
         if neta >= 0.15: pos['be_act'] = True
         
+        # 2. Stop Loss Dinámico
         sl_d = -0.80
         if pos['be_act']: sl_d = 0.0
         if neta >= 0.30: sl_d = 0.15
         
+        # 3. Gatillo 0.02%
+        t_obj = target_ab if pos['tipo'] == "Abeja" else target_cz
         caida_p = ((price - pos['max_alc']) / pos['max_alc']) * 100
-        se_agoto = (neta >= target_obj and caida_p <= -gap_v)
+        se_agoto = (neta >= t_obj and caida_p <= -gap_v)
 
         if neta <= sl_d or se_agoto:
             try:
@@ -162,13 +170,14 @@ if data is not None:
     state["posiciones"] = nuevas
     save_state(state)
 
-    # --- ÚNICO HISTORIAL ---
+    # --- PANEL ÚNICO DE ESTADO e HISTORIAL ---
+    st.markdown(f'<div class="neon-panel"><div class="panel-header">ESTADO DEL MOTOR</div><div class="panel-content"><div class="status-msg">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
+    
     hist_html = '<div style="display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 2px solid #DC143C; padding-bottom:8px;"><div>FECHA/HORA</div><div>ENTRADA</div><div>SALIDA</div><div>%</div><div>PROFIT</div></div>'
     for h in reversed(state["history"][-10:]):
         color = "#00FF00" if "-" not in h["%"] else "#FF0000"
         hist_html += f'<div style="display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr 1fr; padding: 8px 0; border-bottom: 1px solid #222;"><div>{h["Fecha"]}</div><div>{h["Entrada"]}</div><div>{h["Salida"]}</div><div style="color:{color}; font-weight:bold;">{h["%"]}</div><div style="color:{color};">{h["Profit"]}</div></div>'
     
-    st.markdown(f'<div class="neon-panel"><div class="panel-header">ESTADO DEL MOTOR</div><div class="panel-content"><div class="status-msg">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="neon-panel"><div class="panel-header">📜 ÚLTIMOS MOVIMIENTOS</div><div class="panel-content">{hist_html}</div></div>', unsafe_allow_html=True)
 
 time.sleep(15)
