@@ -7,7 +7,7 @@ import os
 import requests
 from datetime import datetime
 
-# --- 1. CONFIGURACIÓN Y ESTRUCTURA DE DATOS ---
+# --- 1. CONFIGURACIÓN Y SINCRONIZACIÓN DE DISCO ---
 API_KEY_BTC = 'mx0vglJcyb3BIWHjDk' 
 SECRET_KEY_BTC = 'de1285d2de1945d2a66e502945c7324b'
 SYMBOL = 'BTC/USDT'
@@ -23,7 +23,7 @@ def send_telegram_msg(msg):
     except: pass
 
 def load_state():
-    # Estructura exacta de tu archivo para evitar pérdidas de datos
+    # Estructura completa incluyendo last_cz_sell_time
     defaults = {
         "capital_asignado": 10.0, 
         "pnl_acumulado": 0.0, 
@@ -35,8 +35,8 @@ def load_state():
         try:
             with open(STATE_FILE, 'r') as f:
                 data = json.load(f)
-                for key in defaults:
-                    if key not in data: data[key] = defaults[key]
+                # Forzar que posiciones sea una lista y no se pierda
+                if "posiciones" not in data: data["posiciones"] = []
                 return data
         except: return defaults
     return defaults
@@ -45,9 +45,9 @@ def save_state(state_data):
     try:
         with open(STATE_FILE, 'w') as f:
             json.dump(state_data, f, indent=4)
-    except: st.error("Error al escribir en el disco.")
+    except: st.error("Error crítico: No se pudo guardar en leonos_btc_state.json")
 
-# --- 2. ESTILOS (ALINEACIÓN CORREGIDA ABAJO) ---
+# --- 2. ESTILOS (ALINEACIÓN CORREGIDA) ---
 st.set_page_config(page_title="LEONOS BTC | V34.3", layout="wide")
 st.markdown("""
     <style>
@@ -64,6 +64,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# CARGA INICIAL DE ESTADO
 state = load_state()
 
 def fetch_data():
@@ -102,14 +103,14 @@ if df_1m is not None:
     cap_inv = sum(float(p['monto']) for p in state["posiciones"])
     cap_disponible = (state["capital_asignado"] + state["pnl_acumulado"]) - cap_inv
 
-    # --- DASHBOARD (Alineación Mejorada) ---
+    # --- DASHBOARD ---
     c1, c2, c3, c4 = st.columns(4)
     with c1: st.markdown(f'<div class="neon-panel"><div class="panel-header">PRECIO & EMA 9</div><div class="panel-content"><div><span class="price-main">${price:,.0f}</span><br><span style="color:#FFFF00; font-size:12px;">EMA 9: ${ema9:,.0f}</span></div><div style="font-size:11px; color:{radar_col}; font-weight:bold;">Radar 15m: {"ALCISTA" if radar_col=="#00FF00" else "BAJISTA"}</div></div></div>', unsafe_allow_html=True)
     with c2: st.markdown(f'<div class="neon-panel"><div class="panel-header">ESTRATEGIA RSI</div><div class="panel-content"><div><span class="price-main">{rsi:.2f}</span></div><div style="color:#FFFF00; font-size:11px; font-weight:bold;">ABEJA < 40 | CAZA < 30</div></div></div>', unsafe_allow_html=True)
     with c3: st.markdown(f'<div class="neon-panel"><div class="panel-header">SALDO LIBRE</div><div class="panel-content"><div><span class="price-main" style="color:#FFFF00;">${cap_disponible:.3f}</span></div><div style="color:#FFFF00; font-size:12px;">CAPITAL: $10.0</div></div></div>', unsafe_allow_html=True)
     with c4: st.markdown(f'<div class="neon-panel"><div class="panel-header">GANANCIA TOTAL</div><div class="panel-content"><div><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span></div><div style="color:#00FF00; font-size:12px;">PNL ACUMULADO</div></div></div>', unsafe_allow_html=True)
 
-    # --- BURBUJAS DE PRECIO ---
+    # --- MOSTRAR POSICIONES ---
     if state["posiciones"]:
         st.markdown('<div style="text-align: center; margin-bottom: 20px;">', unsafe_allow_html=True)
         for pos in state["posiciones"]:
@@ -118,30 +119,33 @@ if df_1m is not None:
             neta_cur = ((price - pos['precio']) / pos['precio']) * 100
             sl_pct = 0.15 if neta_cur >= 0.30 else (0.0 if neta_cur >= 0.15 else -1.20)
             p_sl = pos['precio'] * (1 + sl_pct/100)
-            st.markdown(f'<div class="burbuja b-compra">COMPRA: ${pos["precio"]:,.1f}</div><div class="burbuja b-venta">VENTA: ${p_venta:,.1f}</div><div class="burbuja b-sl">S. LOSS: ${p_sl:,.1f}</div><br>', unsafe_allow_html=True)
+            st.markdown(f'<div class="burbuja b-compra">[{pos["tipo"]}] COMPRA: ${pos["precio"]:,.1f}</div><div class="burbuja b-venta">VENTA: ${p_venta:,.1f}</div><div class="burbuja b-sl">S. LOSS: ${p_sl:,.1f}</div><br>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- LÓGICA DE TRADING ---
+    # --- MOTOR DE TRADING ---
     log_msg = "Analizando..." if bot_encendido else "SISTEMA EN PAUSA"
+    
+    # Lógica de compra
     if bot_encendido and len(state["posiciones"]) < 2:
-        tipo = None
-        if rsi < 40 and price > ema9 and not any(p['tipo']=="Abeja" for p in state["posiciones"]): tipo = "Abeja"
-        elif rsi < 30 and price > ema9 and radar_col=="#00FF00" and not any(p['tipo']=="Cazadora" for p in state["posiciones"]): tipo = "Cazadora"
+        tipo_c = None
+        if rsi < 40 and price > ema9 and not any(p['tipo']=="Abeja" for p in state["posiciones"]): tipo_c = "Abeja"
+        elif rsi < 30 and price > ema9 and radar_col=="#00FF00" and not any(p['tipo']=="Cazadora" for p in state["posiciones"]): tipo_c = "Cazadora"
         
-        if tipo:
+        if tipo_c:
             try:
                 exchange.create_market_buy_order(SYMBOL, 4.95 / price)
-                state["posiciones"].append({"precio": price, "monto": 4.95, "tipo": tipo, "max_alc": price, "be_act": False})
+                state["posiciones"].append({"precio": price, "monto": 4.95, "tipo": tipo_c, "max_alc": price, "be_act": False})
                 save_state(state)
-                tp_p = target_ab if tipo=="Abeja" else target_cz
-                send_telegram_msg(f"🦁 *COMPRA {tipo}*\nBTC: ${price:,.2f}\nVENTA: ${price*(1+tp_p/100):,.2f}\nS. LOSS: ${price*0.988:,.2f}")
+                tp_val = target_ab if tipo_c=="Abeja" else target_cz
+                send_telegram_msg(f"🦁 *COMPRA {tipo_c}*\nBTC: ${price:,.2f}\nVENTA: ${price*(1+tp_val/100):,.2f}\nS. LOSS: ${price*0.988:,.2f}")
             except: pass
 
-    # Ventas
-    pos_vivas = []
+    # Lógica de venta (Procesamiento uno a uno)
+    nuevas_pos = []
     for pos in state["posiciones"]:
         neta = ((price - pos['precio']) / pos['precio']) * 100
         if price > pos.get('max_alc', pos['precio']): pos['max_alc'] = price
+        
         sl_val = 0.15 if neta >= 0.30 else (0.0 if neta >= 0.15 else -1.20)
         t_obj = target_ab if pos['tipo'] == "Abeja" else target_cz
         se_agoto = (neta >= t_obj and ((price - pos['max_alc']) / pos['max_alc']) * 100 <= -0.02)
@@ -155,16 +159,17 @@ if df_1m is not None:
                 if pos['tipo'] == "Cazadora": state["last_cz_sell_time"] = time.time()
                 save_state(state)
                 send_telegram_msg(f"💰 *VENTA {pos['tipo']}*\nBTC: ${price:,.2f}\nRETORNO: {neta:.2f}%")
-            except: pos_vivas.append(pos)
+            except: nuevas_pos.append(pos)
         else:
-            pos_vivas.append(pos)
+            nuevas_pos.append(pos)
             if bot_encendido: log_msg = f"Operando: {pos['tipo']} ({neta:.2f}%)"
     
-    state["posiciones"] = pos_vivas
+    state["posiciones"] = nuevas_pos
     save_state(state)
 
     # --- PANELES FINALES ---
     st.markdown(f'<div class="neon-panel" style="height:auto;"><div class="panel-header">ESTADO DEL MOTOR</div><div class="panel-content" style="height:auto;"><div style="color:white; font-style:italic; border-left:4px solid #FFFF00; padding-left:15px;">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
+    
     hist_html = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; color:#FFFF00; font-weight:bold; border-bottom:2px solid #DC143C; padding-bottom:8px;"><div>HORA</div><div>ENTRADA</div><div>SALIDA</div><div>%</div><div>PROFIT</div></div>'
     for h in reversed(state["history"][-10:]):
         c = "#00FF00" if "-" not in h["%"] else "#FF0000"
