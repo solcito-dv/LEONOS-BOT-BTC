@@ -7,7 +7,7 @@ import os
 import requests
 from datetime import datetime
 
-# --- 1. CONFIGURACIÓN TÉCNICA (PROTECCIÓN DE DATOS) ---
+# --- 1. CONFIGURACIÓN TÉCNICA ---
 API_KEY_BTC = 'mx0vglJcyb3BIWHjDk' 
 SECRET_KEY_BTC = 'de1285d2de1945d2a66e502945c7324b'
 SYMBOL = 'BTC/USDT'
@@ -29,7 +29,6 @@ def load_state():
         try:
             with open(STATE_FILE, 'r') as f:
                 data = json.load(f)
-                # Verificación de integridad de llaves
                 for key in defaults:
                     if key not in data: data[key] = defaults[key]
                 return data
@@ -44,15 +43,16 @@ def save_state(state):
     except Exception as e:
         st.error(f"Error al guardar estado: {e}")
 
-# --- 2. ESTILOS DE INTERFAZ (ORIGINAL COMPLETO) ---
+# --- 2. ESTILOS DE INTERFAZ (AJUSTE DE CENTRADO) ---
 st.set_page_config(page_title="LEONOS BTC | V34.3", layout="wide")
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@500;800&display=swap');
     .stApp { background-color: #000000; font-family: 'JetBrains Mono', monospace; color: #FFFFFF; }
-    .neon-panel { border: 2px solid #DC143C; border-radius: 12px; background: #050505; margin-bottom: 20px; box-shadow: 0 0 15px rgba(220, 20, 60, 0.2); height: 165px; }
+    .neon-panel { border: 2px solid #DC143C; border-radius: 12px; background: #050505; margin-bottom: 20px; box-shadow: 0 0 15px rgba(220, 20, 60, 0.2); height: 165px; display: flex; flex-direction: column; }
     .panel-header { background: rgba(220, 20, 60, 0.2); padding: 12px; border-bottom: 1px solid #DC143C; color: #FFFF00 !important; font-family: 'Orbitron'; font-size: 14px; font-weight: 900; text-align: left; }
-    .panel-content { padding: 15px; text-align: left; }
+    /* Centrado vertical del contenido */
+    .panel-content { padding: 10px 15px; text-align: left; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; }
     .price-main { color: #FFFFFF; font-size: 42px; font-weight: 900; font-family: 'Orbitron'; line-height: 1; }
     .status-msg { color: #FFFFFF; font-style: italic; font-size: 15px; border-left: 4px solid #FFFF00; padding-left: 15px; }
     .burbuja { padding: 12px 20px; border-radius: 30px; font-weight: 800; font-size: 13px; display: inline-block; margin: 8px; border: 1px solid rgba(255,255,255,0.2); }
@@ -63,7 +63,7 @@ st.markdown("""
 
 state = load_state()
 
-# --- 3. LÓGICA DE DATOS Y MERCADO ---
+# --- 3. LÓGICA DE DATOS ---
 def fetch_data(timeframe, limit=100):
     try:
         mexc = ccxt.mexc({'apiKey': API_KEY_BTC, 'secret': SECRET_KEY_BTC, 'options': {'adjustForTimeDifference': True}})
@@ -71,12 +71,10 @@ def fetch_data(timeframe, limit=100):
         df = pd.DataFrame(bars, columns=['time', 'open', 'high', 'low', 'close', 'vol'])
         df['ema9'] = df['close'].ewm(span=9, adjust=False).mean()
         df['ema200'] = df['close'].ewm(span=200, adjust=False).mean()
-        # RSI Cálculo robusto
         delta = df['close'].diff()
         gain = (delta.where(delta > 0, 0)).rolling(14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
-        rs = gain / loss
-        df['rsi'] = 100 - (100 / (1 + rs))
+        df['rsi'] = 100 - (100 / (1 + (gain / loss)))
         return df, mexc
     except Exception as e:
         st.warning(f"Error de conexión: {e}")
@@ -93,10 +91,6 @@ with st.sidebar:
     target_ab = st.slider("Target Abeja (%)", 0.05, 0.50, 0.15, step=0.01)
     target_cz = st.slider("Target Cazadora (%)", 0.10, 1.0, 0.40, step=0.05)
     gap_v = 0.02 
-    if st.button("Limpiar Historial"):
-        state["history"] = []
-        save_state(state)
-        st.rerun()
 
 st.markdown('<h1 style="font-family:Orbitron; color:#DC143C; margin-bottom:0px;">🦁 LEONOS BTC V34.3</h1>', unsafe_allow_html=True)
 
@@ -112,14 +106,14 @@ if df_1m is not None and df_15m is not None:
     cap_inv = sum(float(p['monto']) for p in state["posiciones"])
     cap_disponible = total_patrimonio - cap_inv
 
-    # Dashboard de 4 columnas
+    # Dashboard de 4 columnas centradas
     c1, c2, c3, c4 = st.columns(4)
     with c1: st.markdown(f'<div class="neon-panel"><div class="panel-header">PRECIO & EMA 9/200</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div style="color:#FFFF00; font-size:12px; margin-top:5px;">EMA 9: ${ema9:,.0f} | EMA 200: ${ema200:,.0f}</div><div style="font-size:11px; color:{radar_col}; font-weight:bold; margin-top:5px;">Radar 15m: {radar_txt}</div></div></div>', unsafe_allow_html=True)
-    with c2: st.markdown(f'<div class="neon-panel"><div class="panel-header">ESTRATEGIA RSI</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div style="color:#FFFF00; font-size:11px; font-weight:bold;">ABEJA < 40 | CAZA < 30</div></div></div>', unsafe_allow_html=True)
-    with c3: st.markdown(f'<div class="neon-panel"><div class="panel-header">SALDO LIBRE</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${cap_disponible:.3f}</span><div style="color:#FFFF00; font-size:12px;">CAPITAL: $10.0</div></div></div>', unsafe_allow_html=True)
-    with c4: st.markdown(f'<div class="neon-panel"><div class="panel-header">GANANCIA TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div style="color:#00FF00; font-size:12px;">PNL ACUMULADO</div></div></div>', unsafe_allow_html=True)
+    with c2: st.markdown(f'<div class="neon-panel"><div class="panel-header">ESTRATEGIA RSI</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div style="color:#FFFF00; font-size:11px; font-weight:bold; margin-top:10px;">ABEJA < 40 | CAZA < 30</div></div></div>', unsafe_allow_html=True)
+    with c3: st.markdown(f'<div class="neon-panel"><div class="panel-header">SALDO LIBRE</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${cap_disponible:.3f}</span><div style="color:#FFFF00; font-size:12px; margin-top:10px;">CAPITAL: $10.0</div></div></div>', unsafe_allow_html=True)
+    with c4: st.markdown(f'<div class="neon-panel"><div class="panel-header">GANANCIA TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div style="color:#00FF00; font-size:12px; margin-top:10px;">PNL ACUMULADO</div></div></div>', unsafe_allow_html=True)
 
-    # Posiciones Activas
+    # Posiciones Activas (Burbujas con SL y Target)
     if state["posiciones"]:
         st.markdown('<div style="text-align: center; margin-bottom: 20px;">', unsafe_allow_html=True)
         for pos in state["posiciones"]:
@@ -172,7 +166,7 @@ if df_1m is not None and df_15m is not None:
                 state["history"].append({"Fecha": datetime.now().strftime('%H:%M:%S'), "Entrada": f"${pos['precio']:,.0f}", "Salida": f"${price:,.0f}", "%": f"{neta:.2f}%", "Profit": f"${profit:.4f}"})
                 save_state(state)
                 res_v = "TARGET ✅" if se_agoto else "STOP LOSS ❌"
-                send_telegram_msg(f"💰 *VENTA {pos['tipo']} ({res_v})* \n🔸 Salida: ${price:,.2f} \n🔸 Resultado: {neta:.2f}% \n🔸 Ganancia: ${profit:.4f}")
+                send_telegram_msg(f"💰 *VENTA {pos['tipo']} ({res_v})* \n🔸 Resultado: {neta:.2f}% \n🔸 Ganancia: ${profit:.4f}")
             except Exception as e:
                 st.error(f"Falla en venta: {e}")
                 nuevas.append(pos)
