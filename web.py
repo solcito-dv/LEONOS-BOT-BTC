@@ -35,9 +35,12 @@ def load_state():
 
 def save_state(state_data):
     try:
-        with open(STATE_FILE, 'w') as f:
-            json.dump(state_data, f, indent=4)
-    except: pass
+        with open(STATE_FILE, 'w', encoding='utf-8') as f:
+            json.dump(state_data, f, indent=4, ensure_ascii=False)
+            f.flush() # Esto obliga al sistema a escribir en el disco ahora mismo
+            os.fsync(f.fileno()) # Esto asegura que no quede en la memoria temporal
+    except Exception as e:
+        print(f"Error al guardar: {e}")
 
 # --- 2. INTERFAZ ---
 st.set_page_config(page_title="LEONOS BTC", layout="wide")
