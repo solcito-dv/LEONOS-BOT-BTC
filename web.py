@@ -27,7 +27,6 @@ def load_state():
         try:
             with open(STATE_FILE, 'r') as f:
                 data = json.load(f)
-                # Aseguramos que las listas existan para no perder datos
                 if "posiciones" not in data: data["posiciones"] = []
                 if "history" not in data: data["history"] = []
                 return data
@@ -43,7 +42,6 @@ def save_state(state_data):
 # --- 2. INTERFAZ ---
 st.set_page_config(page_title="LEONOS BTC", layout="wide")
 
-# Quitamos el placeholder total para evitar el "negro total"
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@500;800&display=swap');
@@ -71,27 +69,38 @@ with st.sidebar:
 # --- 3. LÓGICA DE DATOS ---
 try:
     mexc = ccxt.mexc({'apiKey': API_KEY_BTC, 'secret': SECRET_KEY_BTC, 'options': {'adjustForTimeDifference': True}})
+    
+    # Datos 1m
     b1 = mexc.fetch_ohlcv(SYMBOL, timeframe='1m', limit=205)
     df = pd.DataFrame(b1, columns=['time', 'open', 'high', 'low', 'close', 'vol'])
     df['ema9'] = df['close'].ewm(span=9, adjust=False).mean()
     df['ema200'] = df['close'].ewm(span=200, adjust=False).mean()
     
+    # RSI
     delta = df['close'].diff()
-    gain, loss = (delta.where(delta > 0, 0)).rolling(14).mean(), (-delta.where(delta < 0, 0)).rolling(14).mean()
+    gain = (delta.where(delta > 0, 0)).rolling(14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
     df['rsi'] = 100 - (100 / (1 + (gain / loss)))
     
+    # Radar 15m (Corregido)
     b15 = mexc.fetch_ohlcv(SYMBOL, timeframe='15m', limit=50)
     df15 = pd.DataFrame(b15, columns=['time', 'open', 'high', 'low', 'close', 'vol'])
-    radar_up = df.iloc[-1]['close'] > df15.iloc[-1]['close'].rolling(9).mean().iloc[-1]
+    ema9_15m = df15['close'].ewm(span=9, adjust=False).mean().iloc[-1]
     
-    price, rsi, ema9, ema200 = df.iloc[-1]['close'], df.iloc[-1]['rsi'], df.iloc[-1]['ema9'], df.iloc[-1]['ema200']
+    price = df.iloc[-1]['close']
+    rsi = df.iloc[-1]['rsi']
+    ema9 = df.iloc[-1]['ema9']
+    ema200 = df.iloc[-1]['ema200']
+    radar_up = price > ema9_15m
 
     # --- MOTOR ---
     log_msg = "Analizando..." if bot_encendido else "SISTEMA EN PAUSA"
+    
     if bot_encendido and len(state["posiciones"]) < 2:
         tipo_c = None
         if rsi < 40 and price > ema9 and not any(p['tipo']=="Abeja" for p in state["posiciones"]): tipo_c = "Abeja"
         elif rsi < 30 and price > ema9 and radar_up and not any(p['tipo']=="Cazadora" for p in state["posiciones"]): tipo_c = "Cazadora"
+        
         if tipo_c:
             try:
                 mexc.create_market_buy_order(SYMBOL, 4.95 / price)
@@ -104,6 +113,7 @@ try:
     for pos in state["posiciones"]:
         neta = ((price - pos['precio']) / pos['precio']) * 100
         if price > pos.get('max_alc', pos['precio']): pos['max_alc'] = price
+        
         sl_val = 0.15 if neta >= 0.30 else (0.0 if neta >= 0.15 else -1.20)
         t_obj = target_ab if pos['tipo'] == "Abeja" else target_cz
         se_agoto = (neta >= t_obj and ((price - pos['max_alc']) / pos['max_alc']) * 100 <= -0.02)
@@ -120,6 +130,7 @@ try:
         else:
             nuevas.append(pos)
             log_msg = f"Operando: {pos['tipo']} ({neta:.2f}%)"
+            
     state["posiciones"] = nuevas
     save_state(state)
 
@@ -129,11 +140,14 @@ try:
     c1, c2, c3, c4 = st.columns(4)
     with c1: st.markdown(f'<div class="neon-panel" style="height:165px;"><div class="panel-header">PRECIO & EMA 9/200</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div style="color:#FFFF00; font-size:12px; margin-top:5px;">EMA 9: ${ema9:,.0f} | 200: ${ema200:,.0f}</div><div style="font-size:11px; color:{"#00FF00" if radar_up else "#FF0000"}; font-weight:bold;">RADAR 15M: {"ALCISTA" if radar_up else "BAJISTA"}</div></div></div>', unsafe_allow_html=True)
     with c2: st.markdown(f'<div class="neon-panel" style="height:165px;"><div class="panel-header">ESTRATEGIA RSI</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div style="color:#FFFF00; font-size:11px; font-weight:bold; margin-top:15px;">ABEJA < 40 | CAZA < 30</div></div></div>', unsafe_allow_html=True)
-    with c3: st.markdown(f'<div class="neon-panel" style="height:165px;"><div class="panel-header">SALDO LIBRE</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${(state["capital_asignado"] + state["pnl_acumulado"]) - sum(p["monto"] for p in state["posiciones"]):.3f}</span><div style="color:#FFFF00; font-size:12px; margin-top:15px;">CAPITAL INICIAL: $10.0</div></div></div>', unsafe_allow_html=True)
+    with c3: 
+        cap_total = state["capital_asignado"] + state["pnl_acumulado"]
+        cap_inv = sum(p["monto"] for p in state["posiciones"])
+        st.markdown(f'<div class="neon-panel" style="height:165px;"><div class="panel-header">SALDO LIBRE</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${cap_total - cap_inv:.3f}</span><div style="color:#FFFF00; font-size:12px; margin-top:15px;">CAPITAL INICIAL: $10.0</div></div></div>', unsafe_allow_html=True)
     with c4: st.markdown(f'<div class="neon-panel" style="height:165px;"><div class="panel-header">GANANCIA TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div style="color:#00FF00; font-size:12px; margin-top:15px;">PNL ACUMULADO</div></div></div>', unsafe_allow_html=True)
 
     if state["posiciones"]:
-        st.markdown('<div style="text-align: center;">', unsafe_allow_html=True)
+        st.markdown('<div style="text-align: center; margin-bottom: 20px;">', unsafe_allow_html=True)
         for pos in state["posiciones"]:
             n_cur = ((price - pos['precio']) / pos['precio']) * 100
             p_v = pos['precio'] * (1 + (target_ab if pos['tipo']=="Abeja" else target_cz)/100)
