@@ -12,7 +12,6 @@ API_KEY_BTC = 'mx0vglJcyb3BIWHjDk'
 SECRET_KEY_BTC = 'de1285d2de1945d2a66e502945c7324b'
 SYMBOL = 'BTC/USDT'
 STATE_FILE = 'leonos_btc_state.json'
-st.write(f"El bot está guardando los datos en: {os.path.abspath(STATE_FILE)}")
 
 TELEGRAM_TOKEN = '8763648952:AAEIva2htoqUUog2ieiTJND1cx4BWZr-qss'
 TELEGRAM_CHAT_ID = '6458029736'
