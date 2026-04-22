@@ -4,6 +4,7 @@ import pandas as pd
 import time
 import json
 import os
+st.write(f"El bot está guardando los datos en: {os.path.abspath(STATE_FILE)}")
 import requests
 from datetime import datetime
 
