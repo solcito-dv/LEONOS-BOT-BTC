@@ -7,7 +7,7 @@ import os
 import requests
 from datetime import datetime
 
-# --- 1. CONFIGURACIÓN Y PERSISTENCIA TOTAL ---
+# --- 1. CONFIGURACIÓN ---
 API_KEY_BTC = 'mx0vglJcyb3BIWHjDk' 
 SECRET_KEY_BTC = 'de1285d2de1945d2a66e502945c7324b'
 SYMBOL = 'BTC/USDT'
@@ -23,12 +23,10 @@ def send_telegram_msg(msg):
     except: pass
 
 def load_state():
-    # Valores por defecto solo si el archivo NO existe
     if os.path.exists(STATE_FILE):
         try:
             with open(STATE_FILE, 'r') as f:
                 data = json.load(f)
-                # Verificación de integridad para no perder posiciones
                 if "posiciones" not in data: data["posiciones"] = []
                 if "history" not in data: data["history"] = []
                 return data
@@ -39,10 +37,12 @@ def save_state(state_data):
     try:
         with open(STATE_FILE, 'w') as f:
             json.dump(state_data, f, indent=4)
-    except: st.error("⚠️ Error guardando datos en el disco.")
+    except: pass
 
-# --- 2. DISEÑO DE INTERFAZ ---
+# --- 2. INTERFAZ (ESTILOS Y CONTENEDOR ÚNICO) ---
 st.set_page_config(page_title="LEONOS BTC", layout="wide")
+
+# Estilo para prevenir duplicados visuales
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@500;800&display=swap');
@@ -85,6 +85,7 @@ with st.sidebar:
     target_ab = st.slider("Target Abeja (%)", 0.05, 0.50, 0.15, step=0.01)
     target_cz = st.slider("Target Cazadora (%)", 0.10, 1.0, 0.40, step=0.05)
 
+# --- 3. RENDERIZADO ---
 st.markdown('<h1 style="font-family:Orbitron; color:#DC143C; margin-bottom:0px;">🦁 LEONOS BTC</h1>', unsafe_allow_html=True)
 
 if df_1m is not None:
@@ -96,14 +97,14 @@ if df_1m is not None:
     cap_inv = sum(float(p['monto']) for p in state["posiciones"])
     cap_disponible = (state["capital_asignado"] + state["pnl_acumulado"]) - cap_inv
 
-    # --- DASHBOARD ---
+    # Dashboard principal
     c1, c2, c3, c4 = st.columns(4)
     with c1: st.markdown(f'<div class="neon-panel" style="height:165px;"><div class="panel-header">PRECIO & EMA 9</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div style="color:#FFFF00; font-size:12px; margin-top:5px;">EMA 9: ${ema9:,.0f}</div><div style="font-size:11px; color:{radar_col}; font-weight:bold;">Radar 15m: {"ALCISTA" if radar_alcista else "BAJISTA"}</div></div></div>', unsafe_allow_html=True)
     with c2: st.markdown(f'<div class="neon-panel" style="height:165px;"><div class="panel-header">ESTRATEGIA RSI</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div style="color:#FFFF00; font-size:11px; font-weight:bold; margin-top:15px;">ABEJA < 40 | CAZA < 30</div></div></div>', unsafe_allow_html=True)
-    with c3: st.markdown(f'<div class="neon-panel" style="height:165px;"><div class="panel-header">SALDO LIBRE</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${cap_disponible:.3f}</span><div style="color:#FFFF00; font-size:12px; margin-top:15px;">DISPONIBLE PARA OPERAR</div></div></div>', unsafe_allow_html=True)
+    with c3: st.markdown(f'<div class="neon-panel" style="height:165px;"><div class="panel-header">SALDO LIBRE</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${cap_disponible:.3f}</span><div style="color:#FFFF00; font-size:12px; margin-top:15px;">DISPONIBLE</div></div></div>', unsafe_allow_html=True)
     with c4: st.markdown(f'<div class="neon-panel" style="height:165px;"><div class="panel-header">GANANCIA TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div style="color:#00FF00; font-size:12px; margin-top:15px;">PNL ACUMULADO</div></div></div>', unsafe_allow_html=True)
 
-    # --- OPERACIONES ACTIVAS ---
+    # Burbujas
     if state["posiciones"]:
         st.markdown('<div style="text-align: center; margin-bottom: 20px;">', unsafe_allow_html=True)
         for pos in state["posiciones"]:
@@ -115,7 +116,7 @@ if df_1m is not None:
             st.markdown(f'<div class="burbuja b-compra">ENTRADA {pos["tipo"].upper()}: ${pos["precio"]:,.1f}</div><div class="burbuja b-venta">VENTA: ${p_venta:,.1f}</div><div class="burbuja b-sl">ST: ${p_sl:,.1f}</div><br>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # --- LÓGICA DE COMPRA ---
+    # --- LÓGICA DE MOTOR ---
     log_msg = "Analizando..." if bot_encendido else "SISTEMA EN PAUSA"
     if bot_encendido and len(state["posiciones"]) < 2:
         tipo_c = None
@@ -131,7 +132,6 @@ if df_1m is not None:
                 send_telegram_msg(f"🦁 *COMPRA {tipo_c.upper()}*\nBTC: ${price:,.2f}\nVENTA: ${price*(1+t_p/100):,.2f}\nST: ${price*0.988:,.2f}")
             except: pass
 
-    # --- LÓGICA DE VENTA ---
     nuevas = []
     for pos in state["posiciones"]:
         neta = ((price - pos['precio']) / pos['precio']) * 100
@@ -146,7 +146,6 @@ if df_1m is not None:
                 profit = (pos['monto'] * neta / 100)
                 state["pnl_acumulado"] += profit
                 state["history"].append({"Fecha": datetime.now().strftime('%d/%m %H:%M'), "Entrada": f"${pos['precio']:,.0f}", "Salida": f"${price:,.0f}", "%": f"{neta:.2f}%", "Profit": f"${profit:.4f}"})
-                if pos['tipo'] == "Cazadora": state["last_cz_sell_time"] = time.time()
                 save_state(state)
                 send_telegram_msg(f"💰 *VENTA {pos['tipo'].upper()}*\nBTC: ${price:,.2f}\nGANANCIA: ${profit:.4f}\nTOTAL: {neta:.2f}%")
             except: nuevas.append(pos)
@@ -157,14 +156,15 @@ if df_1m is not None:
     state["posiciones"] = nuevas
     save_state(state)
 
-    # --- PANELES DE ESTADO E HISTORIAL ---
-    st.markdown(f'<div class="neon-panel" style="height:auto;"><div class="panel-header">ESTADO DEL MOTOR</div><div class="panel-content"><div style="color:white; font-style:italic; border-left:4px solid #FFFF00; padding-left:15px;">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
+    # --- PANELES FINALES (SIN DUPLICADOS) ---
+    st.markdown(f'<div class="neon-panel"><div class="panel-header">ESTADO DEL MOTOR</div><div class="panel-content"><div style="color:white; font-style:italic; border-left:4px solid #FFFF00; padding-left:15px;">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
     
     hist_html = '<div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr 0.8fr 1fr; color:#FFFF00; font-weight:bold; border-bottom:2px solid #DC143C; padding-bottom:8px;"><div>FECHA</div><div>ENTRADA</div><div>SALIDA</div><div>%</div><div>PROFIT</div></div>'
     for h in reversed(state["history"][-10:]):
         c = "#00FF00" if "-" not in h["%"] else "#FF0000"
         hist_html += f'<div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr 0.8fr 1fr; padding:8px 0; border-bottom:1px solid #222; font-size:13px;"><div>{h["Fecha"]}</div><div>{h["Entrada"]}</div><div>{h["Salida"]}</div><div style="color:{c}; font-weight:bold;">{h["%"]}</div><div style="color:{c};">{h["Profit"]}</div></div>'
-    st.markdown(f'<div class="neon-panel" style="height:auto;"><div class="panel-header">📜 ÚLTIMOS MOVIMIENTOS</div><div class="panel-content">{hist_html}</div></div>', unsafe_allow_html=True)
+    
+    st.markdown(f'<div class="neon-panel"><div class="panel-header">📜 ÚLTIMOS MOVIMIENTOS</div><div class="panel-content">{hist_html}</div></div>', unsafe_allow_html=True)
 
 time.sleep(10)
 st.rerun()
