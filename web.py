@@ -170,7 +170,7 @@ try:
         state["posiciones"] = nuevas
 
     # CUADRO DE ESTADO CON TÍTULO Y LETRA TAMAÑO HISTORIAL (12px)
-    st.markdown(f'<div class="neon-panel"><div class="panel-header">ESTADO DEL MOTOR</div><div class="panel-content" style="padding: 10px;"><div class="status-msg" style="font-size: 12px;">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="neon-panel"><div class="panel-header">ESTADO DEL MOTOR</div><div class="panel-content" style="padding: 10px;"><div class="status-msg" style="font-size: 14px;">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
 
     # Historial
     hist_html = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 2px solid #DC143C; padding-bottom:5px; font-size: 12px;"><div>HORA</div><div>ENTRADA</div><div>SALIDA</div><div>%</div><div>PROFIT</div></div>'
