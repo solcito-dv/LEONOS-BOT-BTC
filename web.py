@@ -65,23 +65,23 @@ def send_telegram_msg(msg):
     except: pass
 
 # --- 3. ESTILOS ---
-st.set_page_config(page_title="LEONOS BTC | V34.4", layout="wide")
+st.set_page_config(page_title="LEONOS BTC | V34.5", layout="wide")
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@500;800&display=swap');
     .stApp { background-color: #000000; font-family: 'JetBrains Mono', monospace; color: #FFFFFF; }
     .neon-panel { border: 2px solid #DC143C; border-radius: 12px; background: #050505; margin-bottom: 15px; box-shadow: 0 0 15px rgba(220, 20, 60, 0.1); display: flex; flex-direction: column; }
-    .dash-panel { min-height: 160px; }
+    .dash-panel { min-height: 165px; }
     .panel-header { background: rgba(220, 20, 60, 0.2); padding: 10px; border-bottom: 1px solid #DC143C; color: #FFFF00 !important; font-family: 'Orbitron'; font-size: 13px; font-weight: 900; }
     .panel-content { padding: 15px; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; }
     .price-main { color: #FFFFFF; font-size: 34px; font-weight: 900; font-family: 'Orbitron'; line-height: 1.1; }
-    .info-sub { color: #FFFF00; font-size: 14px; font-weight: bold; margin-top: 5px; }
+    .info-sub { color: #FFFF00; font-size: 13px; font-weight: bold; margin-top: 5px; }
     .status-msg { color: #FFFFFF; font-style: italic; font-size: 15px; border-left: 3px solid #FFFF00; padding-left: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
 state = load_state()
-ganancia_7d = sum(float(str(h.get('Profit', h.get('Ganancia_USD', 0))).replace('$', '')) for h in state["history"][-50:])
+ganancia_7d = sum(float(str(h.get('Profit', h.get('Ganancia_USD', 0))).replace('$', '').replace(',', '')) for h in state["history"][-50:])
 
 with st.sidebar:
     st.markdown('<p style="color:#DC143C; font-family:Orbitron; font-size:18px; font-weight:900;">🦁 LEONOS CONTROL</p>', unsafe_allow_html=True)
@@ -91,23 +91,26 @@ with st.sidebar:
     target_ab = st.slider("Target Abeja (%)", 0.05, 0.50, 0.15, step=0.01)
     target_cz = st.slider("Target Cazadora (%)", 0.10, 1.5, 0.50, step=0.05)
 
-st.markdown('<h2 style="font-family:Orbitron; color:#DC143C; margin-bottom:20px;">🦁 LEONOS BTC V34.4</h2>', unsafe_allow_html=True)
+st.markdown('<h2 style="font-family:Orbitron; color:#DC143C; margin-bottom:20px;">🦁 LEONOS BTC V34.5</h2>', unsafe_allow_html=True)
 
 # --- 4. MOTOR ---
 try:
     mexc = ccxt.mexc({'apiKey': API_KEY_BTC, 'secret': SECRET_KEY_BTC, 'options': {'adjustForTimeDifference': True}})
     
+    # 1 MINUTO
     b1 = mexc.fetch_ohlcv(SYMBOL, timeframe='1m', limit=205)
     df = pd.DataFrame(b1, columns=['time', 'open', 'high', 'low', 'close', 'vol'])
     df['ema9'] = df['close'].ewm(span=9, adjust=False).mean()
+    df['ema200'] = df['close'].ewm(span=200, adjust=False).mean()
     delta = df['close'].diff(); gain = (delta.where(delta > 0, 0)).rolling(14).mean(); loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
     df['rsi'] = 100 - (100 / (1 + (gain / loss)))
     
+    # 15 MINUTOS (RADAR)
     b15 = mexc.fetch_ohlcv(SYMBOL, timeframe='15m', limit=50)
     df15 = pd.DataFrame(b15, columns=['time', 'open', 'high', 'low', 'close', 'vol'])
     ema200_15 = df15['close'].ewm(span=200, adjust=False).mean().iloc[-1]
     
-    price, rsi, ema9 = df.iloc[-1]['close'], df.iloc[-1]['rsi'], df.iloc[-1]['ema9']
+    price, rsi, ema9, ema200 = df.iloc[-1]['close'], df.iloc[-1]['rsi'], df.iloc[-1]['ema9'], df.iloc[-1]['ema200']
     radar_txt = "ALCISTA" if price > ema200_15 else "BAJISTA"
     radar_col = "#00FF00" if radar_txt == "ALCISTA" else "#FF0000"
 
@@ -115,12 +118,21 @@ try:
     cap_disponible = total_patrimonio - sum(p['monto'] for p in state["posiciones"])
 
     c1, c2, c3, c4 = st.columns(4)
-    with c1: st.markdown(f'<div class="neon-panel dash-panel"><div class="panel-header">PRECIO & EMA 9</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div class="info-sub">EMA 9: ${ema9:,.0f}</div><div style="font-size:11px; color:{radar_col};">Radar 15m: {radar_txt}</div></div></div>', unsafe_allow_html=True)
+    with c1: 
+        st.markdown(f'''
+            <div class="neon-panel dash-panel">
+                <div class="panel-header">INDICADORES (1M)</div>
+                <div class="panel-content">
+                    <span class="price-main">${price:,.0f}</span>
+                    <div class="info-sub">EMA 9: ${ema9:,.0f} | EMA 200: ${ema200:,.0f}</div>
+                    <div style="font-size:11px; color:{radar_col}; margin-top:5px;">Radar 15m: {radar_txt}</div>
+                </div>
+            </div>''', unsafe_allow_html=True)
     with c2: st.markdown(f'<div class="neon-panel dash-panel"><div class="panel-header">ESTRATEGIA RSI</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div class="info-sub">ABEJA < 40 | CAZA < 35</div></div></div>', unsafe_allow_html=True)
     with c3: st.markdown(f'<div class="neon-panel dash-panel"><div class="panel-header">SALDO LIBRE</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${cap_disponible:.3f}</span><div class="info-sub">TOTAL: ${total_patrimonio:.2f}</div></div></div>', unsafe_allow_html=True)
     with c4: st.markdown(f'<div class="neon-panel dash-panel"><div class="panel-header">GANANCIA TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div class="info-sub">PNL ACUMULADO</div></div></div>', unsafe_allow_html=True)
 
-    # REPORTE LUNES 08:00
+    # REPORTE SEMANAL LUNES 08:00
     ahora = datetime.now()
     if ahora.weekday() == 0 and ahora.hour == 8 and ahora.minute == 0 and ahora.second < 15:
         send_telegram_msg(f"🦁 *REPORTE SEMANAL*\n💰 Profit 7d: `${ganancia_7d:.4f} USD`")
@@ -131,13 +143,14 @@ try:
         log_msg = "Analizando..."
         monto_op = (total_patrimonio / 2) - 0.05
         
+        # COMPRA
         if len(state["posiciones"]) < 2 and cap_disponible >= monto_op:
             t_compra = None
-            ya_abeja = any(p['tipo'] == "Abeja" for p in state["posiciones"])
-            ya_caza = any(p['tipo'] == "Cazadora" for p in state["posiciones"])
+            ya_ab = any(p['tipo'] == "Abeja" for p in state["posiciones"])
+            ya_cz = any(p['tipo'] == "Cazadora" for p in state["posiciones"])
 
-            if rsi < 40 and price > ema9 and not ya_abeja: t_compra = "Abeja"
-            elif rsi < 35 and radar_txt == "ALCISTA" and not ya_caza: t_compra = "Cazadora"
+            if rsi < 40 and price > ema9 and not ya_ab: t_compra = "Abeja"
+            elif rsi < 35 and radar_txt == "ALCISTA" and not ya_cz: t_compra = "Cazadora"
 
             if t_compra:
                 mexc.create_market_buy_order(SYMBOL, monto_op / price)
@@ -145,6 +158,7 @@ try:
                 save_state(state)
                 send_telegram_msg(f"🦁 *COMPRA {t_compra.upper()}*\n🔹 Entrada: `${price:,.2f}`")
 
+        # VENTA
         nuevas = []
         for pos in state["posiciones"]:
             neta = ((price - pos['precio']) / pos['precio']) * 100
@@ -173,5 +187,24 @@ try:
         state["posiciones"] = nuevas
 
     st.markdown(f'<div class="neon-panel"><div class="panel-header">MOTOR</div><div class="panel-content" style="padding: 10px;"><div class="status-msg">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
+
+    # HISTORIAL (Corregido para que no aparezca "apagado")
+    hist_html = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 2px solid #DC143C; padding-bottom:5px; font-size: 13px;"><div>HORA</div><div>ENTRADA</div><div>SALIDA</div><div>%</div><div>PROFIT</div></div>'
+    if state["history"]:
+        for h in reversed(state["history"][-8:]):
+            # Mapeo de columnas flexible
+            hora = h.get("Hora") or h.get("Fecha") or h.get("time") or "-"
+            ent = h.get("Entrada") or h.get("Precio_Entrada") or "-"
+            sal = h.get("Salida") or h.get("Precio_Salida") or "-"
+            perc = h.get("%") or h.get("Porcentaje_Neto") or "0%"
+            prof = h.get("Profit") or h.get("Ganancia_USD") or "0"
+            
+            color = "#00FF00" if "-" not in str(perc) else "#FF0000"
+            hist_html += f'<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; padding: 5px 0; border-bottom: 1px solid #222; font-size: 11px;"><div>{hora}</div><div>{ent}</div><div>{sal}</div><div style="color:{color}; font-weight:bold;">{perc}</div><div>{prof}</div></div>'
+    else:
+        hist_html += '<div style="text-align:center; padding:10px; font-size:11px;">Esperando datos...</div>'
+    
+    st.markdown(f'<div class="neon-panel"><div class="panel-header">📜 MOVIMIENTOS RECIENTES</div><div class="panel-content">{hist_html}</div></div>', unsafe_allow_html=True)
+
 except Exception as e: st.error(f"Error: {e}")
 time.sleep(10); st.rerun()
