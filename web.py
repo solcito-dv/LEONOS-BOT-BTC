@@ -49,14 +49,18 @@ def save_state(state_data, venta_realizada=None):
     try:
         sh = conectar_gs()
         ws_e = sh.worksheet("Estado")
+        # Aseguramos escritura limpia en la fila 2
         pos_n, pos_p, pos_m, pos_max = "Ninguna", 0, 0, 0
         if state_data["posiciones"]:
             p = state_data["posiciones"][0]
             pos_n, pos_p, pos_m, pos_max = p["tipo"], p["precio"], p["monto"], p["max_alc"]
+        
         ws_e.update('A2:F2', [[state_data["capital_asignado"], state_data["pnl_acumulado"], pos_n, pos_p, pos_m, pos_max]])
+        
         if venta_realizada:
             sh.worksheet("Historial").append_row(venta_realizada)
-    except: pass
+    except Exception as e:
+        st.error(f"Error al guardar en Sheets: {e}")
 
 def send_telegram_msg(msg):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage?chat_id={TELEGRAM_CHAT_ID}&text={msg}&parse_mode=Markdown"
@@ -68,13 +72,13 @@ st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@500;800&display=swap');
     .stApp { background-color: #000000; font-family: 'JetBrains Mono', monospace; color: #FFFFFF; }
-    .neon-panel { border: 2px solid #DC143C; border-radius: 12px; background: #050505; margin-bottom: 20px; box-shadow: 0 0 15px rgba(220, 20, 60, 0.2); min-height: 160px; }
-    .panel-header { background: rgba(220, 20, 60, 0.2); padding: 12px; border-bottom: 1px solid #DC143C; color: #FFFF00 !important; font-family: 'Orbitron'; font-size: 14px; font-weight: 900; }
-    .panel-content { padding: 20px; }
-    .price-main { color: #FFFFFF; font-size: 42px; font-weight: 900; font-family: 'Orbitron'; line-height: 1; }
-    .info-sub { color: #FFFF00; font-size: 14px; font-weight: bold; margin-top: 8px; }
-    .status-msg { color: #FFFFFF; font-style: italic; font-size: 15px; border-left: 4px solid #FFFF00; padding-left: 15px; }
-    .burbuja { padding: 12px 20px; border-radius: 30px; font-weight: 800; font-size: 11px; display: inline-block; margin: 5px; border: 1px solid rgba(255,255,255,0.2); }
+    .neon-panel { border: 2px solid #DC143C; border-radius: 12px; background: #050505; margin-bottom: 15px; box-shadow: 0 0 15px rgba(220, 20, 60, 0.1); }
+    .panel-header { background: rgba(220, 20, 60, 0.2); padding: 10px; border-bottom: 1px solid #DC143C; color: #FFFF00 !important; font-family: 'Orbitron'; font-size: 13px; font-weight: 900; }
+    .panel-content { padding: 15px; }
+    .price-main { color: #FFFFFF; font-size: 40px; font-weight: 900; font-family: 'Orbitron'; line-height: 1; }
+    .info-sub { color: #FFFF00; font-size: 14px; font-weight: bold; margin-top: 5px; }
+    .status-msg { color: #FFFFFF; font-style: italic; font-size: 14px; border-left: 3px solid #FFFF00; padding-left: 10px; }
+    .burbuja { padding: 10px 18px; border-radius: 30px; font-weight: 800; font-size: 11px; display: inline-block; margin: 4px; border: 1px solid rgba(255,255,255,0.2); }
     .b-entrada { background: #1E90FF; color: white; }
     .b-venta { background: #228B22; color: white; }
     .b-sl { background: #DC143C; color: white; }
@@ -85,14 +89,14 @@ state = load_state()
 ganancia_7d = sum(float(str(h.get('Profit', h.get('Ganancia_USD', 0))).replace('$', '')) for h in state["history"][-50:])
 
 with st.sidebar:
-    st.markdown('<p style="color:#DC143C; font-family:Orbitron; font-size:20px; font-weight:900;">🦁 LEONOS CONTROL</p>', unsafe_allow_html=True)
+    st.markdown('<p style="color:#DC143C; font-family:Orbitron; font-size:18px; font-weight:900;">🦁 LEONOS CONTROL</p>', unsafe_allow_html=True)
     bot_encendido = st.toggle('SISTEMA ACTIVO', value=True)
     st.markdown(f"### 📊 Resumen Semanal\n**Profit 7d:** `${ganancia_7d:.4f} USD`")
     st.markdown("---")
     target_ab = st.slider("Target Abeja (%)", 0.05, 0.50, 0.15, step=0.01)
     target_cz = st.slider("Target Cazadora (%)", 0.10, 1.5, 0.50, step=0.05)
 
-st.markdown('<h1 style="font-family:Orbitron; color:#DC143C;">🦁 LEONOS BTC V34.3</h1>', unsafe_allow_html=True)
+st.markdown('<h2 style="font-family:Orbitron; color:#DC143C; margin-bottom:20px;">🦁 LEONOS BTC V34.3</h2>', unsafe_allow_html=True)
 
 # --- 4. MOTOR ---
 try:
@@ -116,20 +120,22 @@ try:
     total_patrimonio = state["capital_asignado"] + state["pnl_acumulado"]
     cap_disponible = total_patrimonio - sum(p['monto'] for p in state["posiciones"])
 
-    # Dashboard - PANEL DE SALDO RESTAURADO
+    # Dashboard
     c1, c2, c3, c4 = st.columns(4)
-    with c1: st.markdown(f'<div class="neon-panel"><div class="panel-header">PRECIO & EMA 9/200</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div class="info-sub">EMA 9: ${ema9:,.0f} | EMA 200: ${ema200:,.0f}</div><div style="font-size:11px; color:{radar_col};">Radar 15m: {radar_txt}</div></div></div>', unsafe_allow_html=True)
+    with c1: st.markdown(f'<div class="neon-panel"><div class="panel-header">PRECIO & EMA 9/200</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div class="info-sub">EMA 9: ${ema9:,.0f} | 200: ${ema200:,.0f}</div><div style="font-size:11px; color:{radar_col};">Radar 15m: {radar_txt}</div></div></div>', unsafe_allow_html=True)
     with c2: st.markdown(f'<div class="neon-panel"><div class="panel-header">ESTRATEGIA RSI</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div class="info-sub">ABEJA < 40 | CAZA < 35</div></div></div>', unsafe_allow_html=True)
     with c3: st.markdown(f'<div class="neon-panel"><div class="panel-header">SALDO LIBRE</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${cap_disponible:.3f}</span><div class="info-sub">TOTAL: ${total_patrimonio:.2f}</div></div></div>', unsafe_allow_html=True)
     with c4: st.markdown(f'<div class="neon-panel"><div class="panel-header">GANANCIA TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div class="info-sub">PNL ACUMULADO</div></div></div>', unsafe_allow_html=True)
 
+    # Burbujas
     if state["posiciones"]:
-        st.markdown('<div style="text-align: center; margin-bottom: 20px;">', unsafe_allow_html=True)
+        st.markdown('<div style="text-align: center; margin-bottom: 15px;">', unsafe_allow_html=True)
         for p in state["posiciones"]:
             t_obj = target_ab if p['tipo'] == "Abeja" else target_cz
             st.markdown(f'<div class="burbuja b-entrada">ENTRADA {p["tipo"].upper()}: ${p["precio"]:,.1f}</div><div class="burbuja b-venta">TARGET: {t_obj}%</div><div class="burbuja b-sl">SL: -1.20%</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
+    # Lógica Trading
     log_msg = "SISTEMA EN PAUSA"
     if bot_encendido:
         log_msg = "Analizando mercado..."
@@ -170,13 +176,15 @@ try:
                 log_msg = f"Operando {pos['tipo']} ({neta:.2f}%)"
         state["posiciones"] = nuevas
 
-    st.markdown(f'<div class="neon-panel"><div class="panel-header">ESTADO DEL MOTOR</div><div class="panel-content"><div class="status-msg">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
+    # CUADRO DE ESTADO COMPACTO
+    st.markdown(f'<div class="neon-panel" style="min-height: 50px;"><div class="panel-content" style="padding: 10px;"><div class="status-msg">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
 
-    hist_html = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 2px solid #DC143C; padding-bottom:8px;"><div>HORA</div><div>ENTRADA</div><div>SALIDA</div><div>%</div><div>PROFIT</div></div>'
-    for h in reversed(state["history"][-10:]):
+    # Historial
+    hist_html = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 2px solid #DC143C; padding-bottom:5px; font-size: 12px;"><div>HORA</div><div>ENTRADA</div><div>SALIDA</div><div>%</div><div>PROFIT</div></div>'
+    for h in reversed(state["history"][-8:]):
         color = "#00FF00" if "-" not in str(h.get("%", h.get("Porcentaje_Neto", ""))) else "#FF0000"
-        hist_html += f'<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; padding: 8px 0; border-bottom: 1px solid #222;"><div>{h.get("Fecha")}</div><div>{h.get("Entrada", h.get("Precio_Entrada"))}</div><div>{h.get("Salida", h.get("Precio_Salida"))}</div><div style="color:{color}; font-weight:bold;">{h.get("%", h.get("Porcentaje_Neto"))}</div><div>{h.get("Profit", h.get("Ganancia_USD"))}</div></div>'
-    st.markdown(f'<div class="neon-panel"><div class="panel-header">📜 MOVIMIENTOS</div><div class="panel-content">{hist_html}</div></div>', unsafe_allow_html=True)
+        hist_html += f'<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; padding: 5px 0; border-bottom: 1px solid #222; font-size: 11px;"><div>{h.get("Fecha")}</div><div>{h.get("Entrada", h.get("Precio_Entrada"))}</div><div>{h.get("Salida", h.get("Precio_Salida"))}</div><div style="color:{color}; font-weight:bold;">{h.get("%", h.get("Porcentaje_Neto"))}</div><div>{h.get("Profit", h.get("Ganancia_USD"))}</div></div>'
+    st.markdown(f'<div class="neon-panel"><div class="panel-header">📜 MOVIMIENTOS RECIENTES</div><div class="panel-content">{hist_html}</div></div>', unsafe_allow_html=True)
 
 except Exception as e: st.error(f"Error: {e}")
 time.sleep(10); st.rerun()
