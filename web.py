@@ -173,7 +173,7 @@ try:
     st.markdown(f'<div class="neon-panel"><div class="panel-header">ESTADO DEL MOTOR</div><div class="panel-content" style="padding: 10px;"><div class="status-msg" style="font-size: 15px;">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
 
     # Historial
-    hist_html = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 2px solid #DC143C; padding-bottom:5px; font-size: 12px;"><div>HORA</div><div>ENTRADA</div><div>SALIDA</div><div>%</div><div>PROFIT</div></div>'
+    hist_html = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 2px solid #DC143C; padding-bottom:5px; font-size: 14px;"><div>HORA</div><div>ENTRADA</div><div>SALIDA</div><div>%</div><div>PROFIT</div></div>'
     for h in reversed(state["history"][-8:]):
         color = "#00FF00" if "-" not in str(h.get("%", h.get("Porcentaje_Neto", ""))) else "#FF0000"
         hist_html += f'<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; padding: 5px 0; border-bottom: 1px solid #222; font-size: 11px;"><div>{h.get("Fecha")}</div><div>{h.get("Entrada", h.get("Precio_Entrada"))}</div><div>{h.get("Salida", h.get("Precio_Salida"))}</div><div style="color:{color}; font-weight:bold;">{h.get("%", h.get("Porcentaje_Neto"))}</div><div>{h.get("Profit", h.get("Ganancia_USD"))}</div></div>'
