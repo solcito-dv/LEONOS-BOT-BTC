@@ -83,12 +83,18 @@ st.markdown("""
     
     .dash-panel { min-height: 160px; }
     
-    /* Alineación para paneles con poca info */
-    .dash-low-info { padding-top: 25px !important; }
-    
     .panel-header { background: rgba(220, 20, 60, 0.2); padding: 10px; border-bottom: 1px solid #DC143C; color: #FFFF00 !important; font-family: 'Orbitron'; font-size: 13px; font-weight: 900; }
-    .panel-content { padding: 15px; flex-grow: 1; }
-    .price-main { color: #FFFFFF; font-size: 34px; font-weight: 900; font-family: 'Orbitron'; line-height: 1; }
+    
+    /* Centrado vertical perfecto para que todos los números queden en la misma línea */
+    .panel-content { 
+        padding: 15px; 
+        flex-grow: 1; 
+        display: flex; 
+        flex-direction: column; 
+        justify-content: center; 
+    }
+    
+    .price-main { color: #FFFFFF; font-size: 34px; font-weight: 900; font-family: 'Orbitron'; line-height: 1.1; }
     .info-sub { color: #FFFF00; font-size: 14px; font-weight: bold; margin-top: 5px; }
     .status-msg { color: #FFFFFF; font-style: italic; font-size: 15px; border-left: 3px solid #FFFF00; padding-left: 10px; }
     .burbuja { padding: 10px 18px; border-radius: 30px; font-weight: 800; font-size: 11px; display: inline-block; margin: 4px; border: 1px solid rgba(255,255,255,0.2); }
@@ -135,9 +141,9 @@ try:
 
     c1, c2, c3, c4 = st.columns(4)
     with c1: st.markdown(f'<div class="neon-panel dash-panel"><div class="panel-header">PRECIO & EMA 9/200</div><div class="panel-content"><span class="price-main">${price:,.0f}</span><div class="info-sub">EMA 9: ${ema9:,.0f} | 200: ${ema200:,.0f}</div><div style="font-size:11px; color:{radar_col};">Radar 15m: {radar_txt}</div></div></div>', unsafe_allow_html=True)
-    with c2: st.markdown(f'<div class="neon-panel dash-panel"><div class="panel-header">ESTRATEGIA RSI</div><div class="panel-content dash-low-info"><span class="price-main">{rsi:.2f}</span><div class="info-sub">ABEJA < 40 | CAZA < 35</div></div></div>', unsafe_allow_html=True)
-    with c3: st.markdown(f'<div class="neon-panel dash-panel"><div class="panel-header">SALDO LIBRE</div><div class="panel-content dash-low-info"><span class="price-main" style="color:#FFFF00;">${cap_disponible:.3f}</span><div class="info-sub">TOTAL: ${total_patrimonio:.2f}</div></div></div>', unsafe_allow_html=True)
-    with c4: st.markdown(f'<div class="neon-panel dash-panel"><div class="panel-header">GANANCIA TOTAL</div><div class="panel-content dash-low-info"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div class="info-sub">PNL ACUMULADO</div></div></div>', unsafe_allow_html=True)
+    with c2: st.markdown(f'<div class="neon-panel dash-panel"><div class="panel-header">ESTRATEGIA RSI</div><div class="panel-content"><span class="price-main">{rsi:.2f}</span><div class="info-sub">ABEJA < 40 | CAZA < 35</div></div></div>', unsafe_allow_html=True)
+    with c3: st.markdown(f'<div class="neon-panel dash-panel"><div class="panel-header">SALDO LIBRE</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${cap_disponible:.3f}</span><div class="info-sub">TOTAL: ${total_patrimonio:.2f}</div></div></div>', unsafe_allow_html=True)
+    with c4: st.markdown(f'<div class="neon-panel dash-panel"><div class="panel-header">GANANCIA TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div class="info-sub">PNL ACUMULADO</div></div></div>', unsafe_allow_html=True)
 
     if state["posiciones"]:
         st.markdown('<div style="text-align: center; margin-bottom: 15px;">', unsafe_allow_html=True)
@@ -162,8 +168,7 @@ try:
                 state["posiciones"].append({"precio": price, "monto": m_op, "tipo": t_compra, "max_alc": price})
                 save_state(state)
                 t_perc = target_ab if t_compra == "Abeja" else target_cz
-                msg_buy = f"🦁 COMPRA {t_compra.upper()} (BTC)\n🔹 Entrada: ${price:,.2f}\n🎯 Venta: ${price*(1+t_perc/100):,.2f}\n📊 PNL Semanal: ${ganancia_7d:.4f}"
-                send_telegram_msg(msg_buy)
+                send_telegram_msg(f"🦁 COMPRA {t_compra.upper()} (BTC)\n🔹 Entrada: ${price:,.2f}\n🎯 Venta: ${price*(1+t_perc/100):,.2f}\n📊 PNL Semanal: ${ganancia_7d:.4f}")
 
         nuevas = []
         for pos in state["posiciones"]:
@@ -182,8 +187,7 @@ try:
                 profit = (pos['monto'] * neta / 100)
                 state["pnl_acumulado"] += profit
                 save_state(state, [datetime.now().strftime('%H:%M:%S'), "BTC", pos['tipo'], pos['precio'], price, f"{neta:.2f}%", f"{profit:.4f}"])
-                msg_sell = f"💰 VENTA {pos['tipo'].upper()} (BTC)\n📈 Resultado: {neta:.2f}%\n💵 Ganancia: ${profit:.4f}\n📊 PNL Semanal: ${ganancia_7d + profit:.4f}"
-                send_telegram_msg(msg_sell)
+                send_telegram_msg(f"💰 VENTA {pos['tipo'].upper()} (BTC)\n📈 Resultado: {neta:.2f}%\n💵 Ganancia: ${profit:.4f}\n📊 PNL Semanal: ${ganancia_7d + profit:.4f}")
             else:
                 nuevas.append(pos)
                 log_msg = f"Operando {pos['tipo']} ({neta:.2f}%)"
