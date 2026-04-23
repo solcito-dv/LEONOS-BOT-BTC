@@ -70,30 +70,10 @@ st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@500;800&display=swap');
     .stApp { background-color: #000000; font-family: 'JetBrains Mono', monospace; color: #FFFFFF; }
-    
-    .neon-panel { 
-        border: 2px solid #DC143C; 
-        border-radius: 12px; 
-        background: #050505; 
-        margin-bottom: 15px; 
-        box-shadow: 0 0 15px rgba(220, 20, 60, 0.1); 
-        display: flex;
-        flex-direction: column;
-    }
-    
+    .neon-panel { border: 2px solid #DC143C; border-radius: 12px; background: #050505; margin-bottom: 15px; box-shadow: 0 0 15px rgba(220, 20, 60, 0.1); display: flex; flex-direction: column; }
     .dash-panel { min-height: 160px; }
-    
     .panel-header { background: rgba(220, 20, 60, 0.2); padding: 10px; border-bottom: 1px solid #DC143C; color: #FFFF00 !important; font-family: 'Orbitron'; font-size: 13px; font-weight: 900; }
-    
-    /* Centrado vertical perfecto para que todos los números queden en la misma línea */
-    .panel-content { 
-        padding: 15px; 
-        flex-grow: 1; 
-        display: flex; 
-        flex-direction: column; 
-        justify-content: center; 
-    }
-    
+    .panel-content { padding: 15px; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; }
     .price-main { color: #FFFFFF; font-size: 34px; font-weight: 900; font-family: 'Orbitron'; line-height: 1.1; }
     .info-sub { color: #FFFF00; font-size: 14px; font-weight: bold; margin-top: 5px; }
     .status-msg { color: #FFFFFF; font-style: italic; font-size: 15px; border-left: 3px solid #FFFF00; padding-left: 10px; }
@@ -145,49 +125,60 @@ try:
     with c3: st.markdown(f'<div class="neon-panel dash-panel"><div class="panel-header">SALDO LIBRE</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${cap_disponible:.3f}</span><div class="info-sub">TOTAL: ${total_patrimonio:.2f}</div></div></div>', unsafe_allow_html=True)
     with c4: st.markdown(f'<div class="neon-panel dash-panel"><div class="panel-header">GANANCIA TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div class="info-sub">PNL ACUMULADO</div></div></div>', unsafe_allow_html=True)
 
-    if state["posiciones"]:
-        st.markdown('<div style="text-align: center; margin-bottom: 15px;">', unsafe_allow_html=True)
-        for p in state["posiciones"]:
-            abrev = "AB" if p['tipo'] == "Abeja" else "CZ"
-            t_perc = target_ab if p['tipo'] == "Abeja" else target_cz
-            p_out = p['precio'] * (1 + t_perc/100)
-            p_sl = p['precio'] * (1 - 1.20/100)
-            st.markdown(f'<div class="burbuja b-entrada">IN {abrev}: ${p["precio"]:,.0f}</div><div class="burbuja b-venta">OUT: ${p_out:,.0f}</div><div class="burbuja b-sl">SL: ${p_sl:,.0f}</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
     log_msg = "SISTEMA EN PAUSA"
     if bot_encendido:
         log_msg = "Analizando mercado..."
-        if len(state["posiciones"]) < 2:
+        
+        # --- LÓGICA DE COMPRA REFORZADA ---
+        monto_operacion = (total_patrimonio / 2) - 0.05
+        
+        if len(state["posiciones"]) < 2 and cap_disponible >= monto_operacion:
             t_compra = None
-            if rsi < 40 and price > ema9 and not any(p['tipo'] == "Abeja" for p in state["posiciones"]): t_compra = "Abeja"
-            elif rsi < 35 and radar_txt == "ALCISTA" and not any(p['tipo'] == "Cazadora" for p in state["posiciones"]): t_compra = "Cazadora"
-            if t_compra:
-                m_op = (total_patrimonio / 2) - 0.05
-                mexc.create_market_buy_order(SYMBOL, m_op / price)
-                state["posiciones"].append({"precio": price, "monto": m_op, "tipo": t_compra, "max_alc": price})
-                save_state(state)
-                t_perc = target_ab if t_compra == "Abeja" else target_cz
-                send_telegram_msg(f"🦁 COMPRA {t_compra.upper()} (BTC)\n🔹 Entrada: ${price:,.2f}\n🎯 Venta: ${price*(1+t_perc/100):,.2f}\n📊 PNL Semanal: ${ganancia_7d:.4f}")
+            # Evita duplicar si ya existe el tipo de posición en la lista local
+            ya_abeja = any(p['tipo'] == "Abeja" for p in state["posiciones"])
+            ya_caza = any(p['tipo'] == "Cazadora" for p in state["posiciones"])
 
+            if rsi < 40 and price > ema9 and not ya_abeja: 
+                t_compra = "Abeja"
+            elif rsi < 35 and radar_txt == "ALCISTA" and not ya_caza: 
+                t_compra = "Cazadora"
+
+            if t_compra:
+                try:
+                    mexc.create_market_buy_order(SYMBOL, monto_operacion / price)
+                    new_pos = {"precio": price, "monto": monto_operacion, "tipo": t_compra, "max_alc": price}
+                    state["posiciones"].append(new_pos)
+                    save_state(state)
+                    t_perc = target_ab if t_compra == "Abeja" else target_cz
+                    send_telegram_msg(f"🦁 COMPRA {t_compra.upper()} (BTC)\n🔹 Entrada: ${price:,.2f}\n🎯 Venta: ${price*(1+t_perc/100):,.2f}\n📊 PNL Semanal: ${ganancia_7d:.4f}")
+                except Exception as e:
+                    log_msg = f"Error en compra: {str(e)[:20]}"
+
+        # --- LÓGICA DE VENTA ---
         nuevas = []
         for pos in state["posiciones"]:
             neta = ((price - pos['precio']) / pos['precio']) * 100
             if price > pos.get('max_alc', pos['precio']): pos['max_alc'] = price
+            
             t_obj = target_ab if pos['tipo'] == "Abeja" else target_cz
-            caida_max = ((price - pos['max_alc']) / pos['max_alc']) * 100
-            sl_din = -1.20
-            if neta > 0.10: sl_din = -0.05 
+            caida_desde_max = ((price - pos['max_alc']) / pos['max_alc']) * 100
+            
+            sl_dinamico = -1.20
+            if neta > 0.10: sl_dinamico = -0.05 
+
             vender = False
-            if neta <= sl_din: vender = True
-            elif neta >= (t_obj * 0.8) and neta < t_obj and caida_max <= -0.03: vender = True 
-            elif neta >= t_obj and caida_max <= -0.06: vender = True 
+            if neta <= sl_dinamico: vender = True # Stop Loss
+            elif neta >= t_obj: vender = True # Target alcanzado
+            elif neta >= (t_obj * 0.8) and caida_desde_max <= -0.05: vender = True # Protección de profit
+
             if vender:
-                mexc.create_market_sell_order(SYMBOL, pos['monto'] / pos['precio'])
-                profit = (pos['monto'] * neta / 100)
-                state["pnl_acumulado"] += profit
-                save_state(state, [datetime.now().strftime('%H:%M:%S'), "BTC", pos['tipo'], pos['precio'], price, f"{neta:.2f}%", f"{profit:.4f}"])
-                send_telegram_msg(f"💰 VENTA {pos['tipo'].upper()} (BTC)\n📈 Resultado: {neta:.2f}%\n💵 Ganancia: ${profit:.4f}\n📊 PNL Semanal: ${ganancia_7d + profit:.4f}")
+                try:
+                    mexc.create_market_sell_order(SYMBOL, pos['monto'] / pos['precio'])
+                    profit = (pos['monto'] * neta / 100)
+                    state["pnl_acumulado"] += profit
+                    save_state(state, [datetime.now().strftime('%H:%M:%S'), "BTC", pos['tipo'], pos['precio'], price, f"{neta:.2f}%", f"{profit:.4f}"])
+                    send_telegram_msg(f"💰 VENTA {pos['tipo'].upper()} (BTC)\n📈 Resultado: {neta:.2f}%\n💵 Ganancia: ${profit:.4f}\n📊 PNL Semanal: ${ganancia_7d + profit:.4f}")
+                except: pass
             else:
                 nuevas.append(pos)
                 log_msg = f"Operando {pos['tipo']} ({neta:.2f}%)"
