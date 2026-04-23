@@ -49,18 +49,14 @@ def save_state(state_data, venta_realizada=None):
     try:
         sh = conectar_gs()
         ws_e = sh.worksheet("Estado")
-        # Aseguramos escritura limpia en la fila 2
         pos_n, pos_p, pos_m, pos_max = "Ninguna", 0, 0, 0
         if state_data["posiciones"]:
             p = state_data["posiciones"][0]
             pos_n, pos_p, pos_m, pos_max = p["tipo"], p["precio"], p["monto"], p["max_alc"]
-        
         ws_e.update('A2:F2', [[state_data["capital_asignado"], state_data["pnl_acumulado"], pos_n, pos_p, pos_m, pos_max]])
-        
         if venta_realizada:
             sh.worksheet("Historial").append_row(venta_realizada)
-    except Exception as e:
-        st.error(f"Error al guardar en Sheets: {e}")
+    except: pass
 
 def send_telegram_msg(msg):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage?chat_id={TELEGRAM_CHAT_ID}&text={msg}&parse_mode=Markdown"
@@ -77,7 +73,7 @@ st.markdown("""
     .panel-content { padding: 15px; }
     .price-main { color: #FFFFFF; font-size: 40px; font-weight: 900; font-family: 'Orbitron'; line-height: 1; }
     .info-sub { color: #FFFF00; font-size: 14px; font-weight: bold; margin-top: 5px; }
-    .status-msg { color: #FFFFFF; font-style: italic; font-size: 14px; border-left: 3px solid #FFFF00; padding-left: 10px; }
+    .status-msg { color: #FFFFFF; font-style: italic; font-size: 12px; border-left: 3px solid #FFFF00; padding-left: 10px; }
     .burbuja { padding: 10px 18px; border-radius: 30px; font-weight: 800; font-size: 11px; display: inline-block; margin: 4px; border: 1px solid rgba(255,255,255,0.2); }
     .b-entrada { background: #1E90FF; color: white; }
     .b-venta { background: #228B22; color: white; }
@@ -127,7 +123,6 @@ try:
     with c3: st.markdown(f'<div class="neon-panel"><div class="panel-header">SALDO LIBRE</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${cap_disponible:.3f}</span><div class="info-sub">TOTAL: ${total_patrimonio:.2f}</div></div></div>', unsafe_allow_html=True)
     with c4: st.markdown(f'<div class="neon-panel"><div class="panel-header">GANANCIA TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div class="info-sub">PNL ACUMULADO</div></div></div>', unsafe_allow_html=True)
 
-    # Burbujas
     if state["posiciones"]:
         st.markdown('<div style="text-align: center; margin-bottom: 15px;">', unsafe_allow_html=True)
         for p in state["posiciones"]:
@@ -135,7 +130,6 @@ try:
             st.markdown(f'<div class="burbuja b-entrada">ENTRADA {p["tipo"].upper()}: ${p["precio"]:,.1f}</div><div class="burbuja b-venta">TARGET: {t_obj}%</div><div class="burbuja b-sl">SL: -1.20%</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # Lógica Trading
     log_msg = "SISTEMA EN PAUSA"
     if bot_encendido:
         log_msg = "Analizando mercado..."
@@ -143,7 +137,6 @@ try:
             t_compra = None
             if rsi < 40 and price > ema9 and not any(p['tipo'] == "Abeja" for p in state["posiciones"]): t_compra = "Abeja"
             elif rsi < 35 and radar_txt == "ALCISTA" and not any(p['tipo'] == "Cazadora" for p in state["posiciones"]): t_compra = "Cazadora"
-            
             if t_compra:
                 m_op = (total_patrimonio / 2) - 0.05
                 mexc.create_market_buy_order(SYMBOL, m_op / price)
@@ -176,8 +169,8 @@ try:
                 log_msg = f"Operando {pos['tipo']} ({neta:.2f}%)"
         state["posiciones"] = nuevas
 
-    # CUADRO DE ESTADO COMPACTO
-    st.markdown(f'<div class="neon-panel" style="min-height: 50px;"><div class="panel-content" style="padding: 10px;"><div class="status-msg">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
+    # CUADRO DE ESTADO CON TÍTULO Y LETRA TAMAÑO HISTORIAL (12px)
+    st.markdown(f'<div class="neon-panel"><div class="panel-header">ESTADO DEL MOTOR</div><div class="panel-content" style="padding: 10px;"><div class="status-msg" style="font-size: 12px;">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
 
     # Historial
     hist_html = '<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 2px solid #DC143C; padding-bottom:5px; font-size: 12px;"><div>HORA</div><div>ENTRADA</div><div>SALIDA</div><div>%</div><div>PROFIT</div></div>'
