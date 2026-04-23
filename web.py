@@ -59,8 +59,10 @@ def save_state(state_data, venta_realizada=None):
     except: pass
 
 def send_telegram_msg(msg):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage?chat_id={TELEGRAM_CHAT_ID}&text={msg}&parse_mode=Markdown"
-    requests.get(url, timeout=5)
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage?chat_id={TELEGRAM_CHAT_ID}&text={msg}&parse_mode=Markdown"
+        requests.get(url, timeout=5)
+    except: pass
 
 # --- 3. ESTILOS ---
 st.set_page_config(page_title="LEONOS BTC | V34.3", layout="wide")
@@ -123,11 +125,15 @@ try:
     with c3: st.markdown(f'<div class="neon-panel"><div class="panel-header">SALDO LIBRE</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${cap_disponible:.3f}</span><div class="info-sub">TOTAL: ${total_patrimonio:.2f}</div></div></div>', unsafe_allow_html=True)
     with c4: st.markdown(f'<div class="neon-panel"><div class="panel-header">GANANCIA TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div class="info-sub">PNL ACUMULADO</div></div></div>', unsafe_allow_html=True)
 
+    # Burbujas corregidas: IN, OUT, SL en precios
     if state["posiciones"]:
         st.markdown('<div style="text-align: center; margin-bottom: 15px;">', unsafe_allow_html=True)
         for p in state["posiciones"]:
-            t_obj = target_ab if p['tipo'] == "Abeja" else target_cz
-            st.markdown(f'<div class="burbuja b-entrada">ENTRADA {p["tipo"].upper()}: ${p["precio"]:,.1f}</div><div class="burbuja b-venta">TARGET: {t_obj}%</div><div class="burbuja b-sl">SL: -1.20%</div>', unsafe_allow_html=True)
+            abrev = "AB" if p['tipo'] == "Abeja" else "CZ"
+            t_perc = target_ab if p['tipo'] == "Abeja" else target_cz
+            p_out = p['precio'] * (1 + t_perc/100)
+            p_sl = p['precio'] * (1 - 1.20/100)
+            st.markdown(f'<div class="burbuja b-entrada">IN {abrev}: ${p["precio"]:,.0f}</div><div class="burbuja b-venta">OUT: ${p_out:,.0f}</div><div class="burbuja b-sl">SL: ${p_sl:,.0f}</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     log_msg = "SISTEMA EN PAUSA"
@@ -137,11 +143,16 @@ try:
             t_compra = None
             if rsi < 40 and price > ema9 and not any(p['tipo'] == "Abeja" for p in state["posiciones"]): t_compra = "Abeja"
             elif rsi < 35 and radar_txt == "ALCISTA" and not any(p['tipo'] == "Cazadora" for p in state["posiciones"]): t_compra = "Cazadora"
+            
             if t_compra:
                 m_op = (total_patrimonio / 2) - 0.05
                 mexc.create_market_buy_order(SYMBOL, m_op / price)
                 state["posiciones"].append({"precio": price, "monto": m_op, "tipo": t_compra, "max_alc": price})
-                save_state(state); send_telegram_msg(f"🦁 COMPRA {t_compra}: ${price:,.2f}")
+                save_state(state)
+                # Telegram de Compra detallado
+                t_perc = target_ab if t_compra == "Abeja" else target_cz
+                msg = f"🦁 COMPRA {t_compra.upper()} (BTC)\n🔹 Entrada: ${price:,.2f}\n🎯 Venta: ${price*(1+t_perc/100):,.2f}\n🚫 SL: ${price*(1-1.20/100):,.2f}"
+                send_telegram_msg(msg)
 
         nuevas = []
         for pos in state["posiciones"]:
@@ -163,13 +174,14 @@ try:
                 profit = (pos['monto'] * neta / 100)
                 state["pnl_acumulado"] += profit
                 save_state(state, [datetime.now().strftime('%H:%M:%S'), "BTC", pos['tipo'], pos['precio'], price, f"{neta:.2f}%", f"{profit:.4f}"])
-                send_telegram_msg(f"💰 VENTA {pos['tipo']}: {neta:.2f}%\n📊 PNL Semanal: ${ganancia_7d + profit:.4f}")
+                # Telegram de Venta detallado
+                v_msg = f"💰 VENTA {pos['tipo'].upper()} (BTC)\n📈 Resultado: {neta:.2f}%\n💵 Ganancia: ${profit:.4f}\n📊 PNL Semanal: ${ganancia_7d + profit:.4f}"
+                send_telegram_msg(v_msg)
             else:
                 nuevas.append(pos)
                 log_msg = f"Operando {pos['tipo']} ({neta:.2f}%)"
         state["posiciones"] = nuevas
 
-    # CUADRO DE ESTADO CON TÍTULO Y LETRA TAMAÑO HISTORIAL (12px)
     st.markdown(f'<div class="neon-panel"><div class="panel-header">ESTADO DEL MOTOR</div><div class="panel-content" style="padding: 10px;"><div class="status-msg" style="font-size: 15px;">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
 
     # Historial
