@@ -29,16 +29,18 @@ def load_state():
                 data = json.load(f)
                 if "posiciones" not in data: data["posiciones"] = []
                 if "history" not in data: data["history"] = []
+                # Actualizamos el capital asignado a 30 si el archivo tiene el valor viejo
+                if data.get("capital_asignado", 0) < 30.0: data["capital_asignado"] = 30.0
                 return data
         except: pass
-    return {"capital_asignado": 10.0, "pnl_acumulado": 0.0, "posiciones": [], "history": []}
+    return {"capital_asignado": 30.0, "pnl_acumulado": 0.0, "posiciones": [], "history": []}
 
 def save_state(state_data):
     try:
         with open(STATE_FILE, 'w', encoding='utf-8') as f:
             json.dump(state_data, f, indent=4, ensure_ascii=False)
-            f.flush() # Esto obliga al sistema a escribir en el disco ahora mismo
-            os.fsync(f.fileno()) # Esto asegura que no quede en la memoria temporal
+            f.flush()
+            os.fsync(f.fileno())
     except Exception as e:
         print(f"Error al guardar: {e}")
 
@@ -73,19 +75,16 @@ with st.sidebar:
 try:
     mexc = ccxt.mexc({'apiKey': API_KEY_BTC, 'secret': SECRET_KEY_BTC, 'options': {'adjustForTimeDifference': True}})
     
-    # Datos 1m
     b1 = mexc.fetch_ohlcv(SYMBOL, timeframe='1m', limit=205)
     df = pd.DataFrame(b1, columns=['time', 'open', 'high', 'low', 'close', 'vol'])
     df['ema9'] = df['close'].ewm(span=9, adjust=False).mean()
     df['ema200'] = df['close'].ewm(span=200, adjust=False).mean()
     
-    # RSI
     delta = df['close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
     df['rsi'] = 100 - (100 / (1 + (gain / loss)))
     
-    # Radar 15m (Corregido)
     b15 = mexc.fetch_ohlcv(SYMBOL, timeframe='15m', limit=50)
     df15 = pd.DataFrame(b15, columns=['time', 'open', 'high', 'low', 'close', 'vol'])
     ema9_15m = df15['close'].ewm(span=9, adjust=False).mean().iloc[-1]
@@ -105,11 +104,15 @@ try:
         elif rsi < 30 and price > ema9 and radar_up and not any(p['tipo']=="Cazadora" for p in state["posiciones"]): tipo_c = "Cazadora"
         
         if tipo_c:
+            # INTERÉS COMPUESTO: Capital Base + Ganancias, dividido en 2 posiciones
+            saldo_disponible = state["capital_asignado"] + state["pnl_acumulado"]
+            monto_operacion = (saldo_disponible / 2) - 0.05 # Margen para comisiones
+            
             try:
-                mexc.create_market_buy_order(SYMBOL, 4.95 / price)
-                state["posiciones"].append({"precio": price, "monto": 4.95, "tipo": tipo_c, "max_alc": price})
+                mexc.create_market_buy_order(SYMBOL, monto_operacion / price)
+                state["posiciones"].append({"precio": price, "monto": monto_operacion, "tipo": tipo_c, "max_alc": price})
                 save_state(state)
-                send_telegram_msg(f"🦁 *COMPRA {tipo_c.upper()}*\nBTC: ${price:,.2f}")
+                send_telegram_msg(f"🦁 *COMPRA {tipo_c.upper()}*\nBTC: ${price:,.2f}\nMONTO: ${monto_operacion:.2f}")
             except: pass
 
     nuevas = []
@@ -146,7 +149,7 @@ try:
     with c3: 
         cap_total = state["capital_asignado"] + state["pnl_acumulado"]
         cap_inv = sum(p["monto"] for p in state["posiciones"])
-        st.markdown(f'<div class="neon-panel" style="height:165px;"><div class="panel-header">SALDO LIBRE</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${cap_total - cap_inv:.3f}</span><div style="color:#FFFF00; font-size:12px; margin-top:15px;">CAPITAL INICIAL: $10.0</div></div></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="neon-panel" style="height:165px;"><div class="panel-header">SALDO LIBRE</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${cap_total - cap_inv:.3f}</span><div style="color:#FFFF00; font-size:12px; margin-top:15px;">CAPITAL BASE: $30.0</div></div></div>', unsafe_allow_html=True)
     with c4: st.markdown(f'<div class="neon-panel" style="height:165px;"><div class="panel-header">GANANCIA TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span><div style="color:#00FF00; font-size:12px; margin-top:15px;">PNL ACUMULADO</div></div></div>', unsafe_allow_html=True)
 
     if state["posiciones"]:
