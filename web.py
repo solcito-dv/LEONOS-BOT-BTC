@@ -19,10 +19,14 @@ TELEGRAM_CHAT_ID = '6458029736'
 # --- 2. CONEXIÓN GOOGLE SHEETS ---
 def conectar_gs():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    # Reemplaza por tu archivo JSON real
-    creds = ServiceAccountCredentials.from_json_keyfile_name('local-catfish-494217-d6-8e241d2412e9.json', scope)
+    
+    # Conexión segura vía Secrets de Streamlit
+    creds_dict = st.secrets["gcp_service_account"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    
     client = gspread.authorize(creds)
-    return client.open("LEONOS_TRADING_DATA")
+    # IMPORTANTE: Asegúrate que el nombre en tu Drive sea exactamente este:
+    return client.open("BTC_TRADING_DATA")
 
 def get_arg_time():
     return datetime.now(pytz.timezone('America/Argentina/Buenos_Aires'))
@@ -46,7 +50,7 @@ def load_state():
             })
         ws_h = sh.worksheet("Historial")
         hist_data = ws_h.get_all_records()
-        state["history"] = hist_data # Cargamos todo para el resumen semanal
+        state["history"] = hist_data 
         return state
     except:
         return {"capital_asignado": 30.0, "pnl_acumulado": 0.0, "posiciones": [], "history": []}
@@ -80,8 +84,24 @@ def send_telegram_sell(tipo, p_ent, p_sal, neta, profit):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage?chat_id={TELEGRAM_CHAT_ID}&text={msg}&parse_mode=Markdown"
     requests.get(url, timeout=5)
 
-# --- 3. INTERFAZ ---
+# --- 3. INTERFAZ Y ESTILOS ---
 st.set_page_config(page_title="LEONOS BTC PRO", layout="wide")
+
+# Inyección de CSS para recuperar el diseño Negro y Rojo
+st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@500;800&display=swap');
+    .stApp { background-color: #000000; font-family: 'JetBrains Mono', monospace; color: #FFFFFF; }
+    .neon-panel { border: 2px solid #DC143C; border-radius: 12px; background: #050505; margin-bottom: 20px; box-shadow: 0 0 15px rgba(220, 20, 60, 0.2); }
+    .panel-header { background: rgba(220, 20, 60, 0.2); padding: 12px; border-bottom: 1px solid #DC143C; color: #FFFF00 !important; font-family: 'Orbitron'; font-size: 14px; font-weight: 900; }
+    .panel-content { padding: 15px; }
+    .price-main { color: #FFFFFF; font-size: 42px; font-weight: 900; font-family: 'Orbitron'; line-height: 1; }
+    .burbuja { padding: 10px 18px; border-radius: 30px; font-weight: 800; font-size: 12px; display: inline-block; margin: 5px; border: 1px solid rgba(255,255,255,0.2); }
+    .b-compra { background: #1E90FF; color: white; }
+    .b-venta { background: #00FF00; color: black; }
+    </style>
+    """, unsafe_allow_html=True)
+
 state = load_state()
 
 # Cálculo Resumen Semanal
@@ -105,7 +125,6 @@ with st.sidebar:
 # --- 4. MOTOR DE TRADING ---
 try:
     mexc = ccxt.mexc({'apiKey': API_KEY_BTC, 'secret': SECRET_KEY_BTC, 'options': {'adjustForTimeDifference': True}})
-    # Datos 1m y 15m
     b1 = mexc.fetch_ohlcv(SYMBOL, timeframe='1m', limit=205)
     df = pd.DataFrame(b1, columns=['time', 'open', 'high', 'low', 'close', 'vol'])
     df['ema9'] = df['close'].ewm(span=9, adjust=False).mean()
@@ -121,9 +140,6 @@ try:
     price, rsi, ema9 = df.iloc[-1]['close'], df.iloc[-1]['rsi'], df.iloc[-1]['ema9']
     tendencia_alcista_15m = price > ema200_15
 
-    log_msg = "Analizando..." if bot_encendido else "SISTEMA EN PAUSA"
-    
-    # LÓGICA DE COMPRA
     if bot_encendido and len(state["posiciones"]) < 2:
         tipo_c = None
         if rsi < 40 and price > ema9 and not any(p['tipo']=="Abeja" for p in state["posiciones"]): 
@@ -141,7 +157,6 @@ try:
                 send_telegram_buy(tipo_c, price, monto_op)
             except: pass
 
-    # LÓGICA DE VENTA (PILLA)
     nuevas = []
     for pos in state["posiciones"]:
         neta = ((price - pos['precio']) / pos['precio']) * 100
@@ -150,11 +165,10 @@ try:
         t_obj = target_ab if pos['tipo'] == "Abeja" else target_cz
         distancia_max = ((price - pos['max_alc']) / pos['max_alc']) * 100
         
-        # EL CEREBRO DEL BOT:
         vender = False
-        if neta <= -1.20: vender = True # Stop Loss duro
-        elif neta >= t_obj and distancia_max <= -0.06: vender = True # Superó objetivo y retrocedió 0.06%
-        elif neta >= (t_obj * 0.8) and distancia_max <= -0.03: vender = True # Casi llega al objetivo pero flaquea
+        if neta <= -1.20: vender = True 
+        elif neta >= t_obj and distancia_max <= -0.06: vender = True 
+        elif neta >= (t_obj * 0.8) and distancia_max <= -0.03: vender = True 
         
         if vender:
             try:
@@ -167,7 +181,6 @@ try:
             except: nuevas.append(pos)
         else:
             nuevas.append(pos)
-            log_msg = f"Operando: {pos['tipo']} ({neta:.2f}%)"
             
     state["posiciones"] = nuevas
 
@@ -178,6 +191,10 @@ try:
     with c2: st.markdown(f'<div class="neon-panel" style="height:150px;"><div class="panel-header">RSI (1M)</div><div class="panel-content"><span class="price-main">{rsi:.1f}</span></div></div>', unsafe_allow_html=True)
     with c3: st.markdown(f'<div class="neon-panel" style="height:150px;"><div class="panel-header">CAPITAL TOTAL</div><div class="panel-content"><span class="price-main" style="color:#FFFF00;">${state["capital_asignado"]+state["pnl_acumulado"]:.2f}</span></div></div>', unsafe_allow_html=True)
     with c4: st.markdown(f'<div class="neon-panel" style="height:150px;"><div class="panel-header">PNL TOTAL</div><div class="panel-content"><span class="price-main" style="color:#00FF00;">${state["pnl_acumulado"]:.4f}</span></div></div>', unsafe_allow_html=True)
+
+    if state["posiciones"]:
+        for pos in state["posiciones"]:
+            st.markdown(f'<div class="burbuja b-compra">OPERANDO {pos["tipo"].upper()}: ${pos["precio"]:,.1f}</div>', unsafe_allow_html=True)
 
     h_rows = "".join([f'<div style="display: grid; grid-template-columns: 1.2fr 0.8fr 1fr 1fr 0.8fr 1fr; padding:8px 0; border-bottom:1px solid #222; font-size:13px;"><div>{h.get("Fecha")}</div><div>{h.get("Par")}</div><div>{h.get("Precio_Entrada")}</div><div>{h.get("Precio_Salida")}</div><div style="color:#00FF00;">{h.get("Porcentaje_Neto")}</div><div>{h.get("Ganancia_USD")}</div></div>' for h in reversed(state["history"][-10:])])
     st.markdown(f'<div class="neon-panel"><div class="panel-header">📜 ÚLTIMOS MOVIMIENTOS (ARGENTINA TIME)</div><div class="panel-content">{h_rows}</div></div>', unsafe_allow_html=True)
