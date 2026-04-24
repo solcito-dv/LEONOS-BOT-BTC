@@ -59,25 +59,39 @@ def save_state(state_data, venta_realizada=None):
     try:
         sh = conectar_gs()
         ws_e = sh.worksheet("ESTADO")
-        pos_n, pos_p, pos_m, pos_max = "Ninguna", 0.0, 0.0, 0.0
+        
+        # Preparar los datos asegurando que sean tipos compatibles con JSON
+        pos_n = "Ninguna"
+        pos_p, pos_m, pos_max = 0.0, 0.0, 0.0
+        
         if state_data["posiciones"]:
             p = state_data["posiciones"][0]
-            pos_n, pos_p, pos_m, pos_max = p["tipo"], p["precio"], p["monto"], p.get("max_alc", p["precio"])
+            pos_n = str(p["tipo"])
+            pos_p = float(p["precio"])
+            pos_m = float(p["monto"])
+            pos_max = float(p.get("max_alc", p["precio"]))
         
-        # Actualización forzada a la fila 2
-        ws_e.update('A2:F2', [[float(state_data["capital_asignado"]), float(state_data["pnl_acumulado"]), pos_n, pos_p, pos_m, pos_max]])
+        # Datos para la fila 2 (A2:F2)
+        valores = [[
+            float(state_data["capital_asignado"]), 
+            float(state_data["pnl_acumulado"]), 
+            pos_n, 
+            pos_p, 
+            pos_m, 
+            pos_max
+        ]]
+        
+        # Usamos 'raw=False' para que Google interprete los números correctamente
+        ws_e.update('A2:F2', valores, value_input_option='USER_ENTERED')
         
         if venta_realizada:
             ws_h = sh.worksheet("HISTORIAL")
-            # Anti-duplicado simple por precio de entrada
-            todas = ws_h.get_all_values()
-            if len(todas) > 0:
-                ultima = todas[-1]
-                if str(venta_realizada[3]) != str(ultima[3]):
-                    ws_h.append_row(venta_realizada)
-            else:
-                ws_h.append_row(venta_realizada)
-    except: pass
+            # Convertimos todo a string para el historial para evitar errores de API
+            fila_historial = [str(x) for x in venta_realizada]
+            ws_h.append_row(fila_historial, value_input_option='USER_ENTERED')
+            
+    except Exception as e:
+        st.error(f"Error de escritura en Excel: {e}")
 
 def send_telegram_msg(msg):
     try:
