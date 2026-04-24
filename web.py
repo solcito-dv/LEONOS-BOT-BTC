@@ -28,43 +28,62 @@ def load_state():
         ws = sh.worksheet("ESTADO")
         filas = ws.get_all_records()
         if not filas: return {"capital_asignado": 30.0, "pnl_acumulado": 0.0, "posiciones": [], "history": []}
+        
         datos = filas[0]
+        # Función interna para convertir a float de forma segura
+        def safe_float(valor, default=0.0):
+            try: return float(str(valor).replace(',', '.').strip()) if valor not in [None, '', ' '] else default
+            except: return default
+
         state = {
-            "capital_asignado": float(datos.get('Capital_Base', 30.0)),
-            "pnl_acumulado": float(datos.get('PNL_Acumulado', 0.0)),
+            "capital_asignado": safe_float(datos.get('Capital_Base'), 30.0),
+            "pnl_acumulado": safe_float(datos.get('PNL_Acumulado'), 0.0),
             "posiciones": [], "history": []
         }
-        pos_nombre = datos.get('Posicion_Abierta', "Ninguna")
-        if pos_nombre and pos_nombre != "Ninguna":
+
+        pos_nombre = str(datos.get('Posicion_Abierta', "Ninguna")).strip()
+        if pos_nombre and pos_nombre not in ["Ninguna", "0", "None", ""]:
             state["posiciones"].append({
-                "precio": float(datos.get('Precio_Entrada', 0)),
-                "monto": float(datos.get('Monto_Invertido', 0)),
+                "precio": safe_float(datos.get('Precio_Entrada')),
+                "monto": safe_float(datos.get('Monto_Invertido')),
                 "tipo": pos_nombre,
-                "max_alc": float(datos.get('Max_Alcanzado', datos.get('Precio_Entrada', 0)))
+                "max_alc": safe_float(datos.get('Max_Alcanzado'), safe_float(datos.get('Precio_Entrada')))
             })
+        
         state["history"] = sh.worksheet("HISTORIAL").get_all_records()
         return state
-    except:
+    except Exception as e:
+        st.error(f"Error cargando Excel: {e}")
         return {"capital_asignado": 30.0, "pnl_acumulado": 0.0, "posiciones": [], "history": []}
 
 def save_state(state_data, venta_realizada=None):
     try:
         sh = conectar_gs()
         ws_e = sh.worksheet("ESTADO")
-        pos_n, pos_p, pos_m, pos_max = "Ninguna", 0, 0, 0
+        
+        pos_n, pos_p, pos_m, pos_max = "Ninguna", 0.0, 0.0, 0.0
         if state_data["posiciones"]:
             p = state_data["posiciones"][0]
-            pos_n, pos_p, pos_m, pos_max = p["tipo"], p["precio"], p["monto"], p.get("max_alc", p["precio"])
+            pos_n = p["tipo"]
+            pos_p = float(p["precio"])
+            pos_m = float(p["monto"])
+            pos_max = float(p.get("max_alc", p["precio"]))
         
-        ws_e.update('A2:F2', [[state_data["capital_asignado"], state_data["pnl_acumulado"], pos_n, pos_p, pos_m, pos_max]])
+        # Guardado forzado de tipos numéricos y texto limpio
+        valores = [[
+            float(state_data["capital_asignado"]), 
+            float(state_data["pnl_acumulado"]), 
+            pos_n, 
+            pos_p, 
+            pos_m, 
+            pos_max
+        ]]
+        ws_e.update('A2:F2', valores)
         
         if venta_realizada:
-            ws_h = sh.worksheet("HISTORIAL")
-            # EVITAR DUPLICADOS: Compara con la última fila guardada
-            ultima_fila = ws_h.get_all_values()[-1] if ws_h.get_all_values() else []
-            if str(venta_realizada[3]) != str(ultima_fila[3]): # Compara precio entrada
-                ws_h.append_row(venta_realizada)
-    except: pass
+            sh.worksheet("HISTORIAL").append_row(venta_realizada)
+    except Exception as e:
+        st.error(f"Error al guardar datos: {e}")
 
 def send_telegram_msg(msg):
     try:
