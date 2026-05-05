@@ -58,13 +58,13 @@ def save_state(state_data, venta_realizada=None):
     try:
         sh = conectar_gs()
         ws_e = sh.worksheet("ESTADO")
-        pos_n, pos_p, pos_m, pos_max = "Ninguna", 0.0, 0.0, 0.0
-        
-        if state_data["posiciones"]:
+        # Si no hay posiciones, reseteamos los valores en la hoja
+        if not state_data["posiciones"]:
+            valores = [[float(state_data["capital_asignado"]), float(state_data["pnl_acumulado"]), "Ninguna", 0.0, 0.0, 0.0]]
+        else:
             p = state_data["posiciones"][0]
-            pos_n, pos_p, pos_m, pos_max = str(p["tipo"]), float(p["precio"]), float(p["monto"]), float(p.get("max_alc", p["precio"]))
+            valores = [[float(state_data["capital_asignado"]), float(state_data["pnl_acumulado"]), str(p["tipo"]), float(p["precio"]), float(p["monto"]), float(p.get("max_alc", p["precio"]))]]
         
-        valores = [[float(state_data["capital_asignado"]), float(state_data["pnl_acumulado"]), pos_n, pos_p, pos_m, pos_max]]
         ws_e.update('A2:F2', valores, value_input_option='USER_ENTERED')
         
         if venta_realizada:
@@ -80,8 +80,8 @@ def send_telegram_msg(msg):
         requests.get(url, timeout=5)
     except: pass
 
-# --- 3. ESTILOS ---
-st.set_page_config(page_title=f"{BOT_NAME} | V35.8", layout="wide")
+# --- 3. ESTILOS (MANTENIDOS) ---
+st.set_page_config(page_title=f"{BOT_NAME} | V36.0", layout="wide")
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@500;800&display=swap');
@@ -106,9 +106,9 @@ with st.sidebar:
     bot_encendido = st.toggle('SISTEMA ACTIVO', value=True)
     st.markdown("---")
     target_ab = st.slider("Target Abeja (%)", 0.05, 0.50, 0.15, step=0.01)
-    target_cz = st.slider("Target Cazadora (%)", 0.10, 1.5, 0.50, step=0.05)
+    target_cz = st.slider("Target Target Cazadora (%)", 0.10, 1.5, 0.50, step=0.05)
 
-st.markdown(f'<h2 style="font-family:Orbitron; color:#DC143C; margin-bottom:20px;">🦁 {BOT_NAME} V35.8</h2>', unsafe_allow_html=True)
+st.markdown(f'<h2 style="font-family:Orbitron; color:#DC143C; margin-bottom:20px;">🦁 {BOT_NAME} V36.0</h2>', unsafe_allow_html=True)
 
 # --- 4. MOTOR ---
 try:
@@ -143,6 +143,7 @@ try:
         log_msg = "Buscando entrada..."
         monto_op = (total_patrimonio / 2) - 0.05
         
+        # FILTRO DE MENSAJES Y ENTRADA (Solo si hay capital)
         if len(state["posiciones"]) < 2 and cap_disponible >= monto_op:
             t_compra = None
             if rsi < 40 and price > ema9 and not any(p['tipo'] == "Abeja" for p in state["posiciones"]): t_compra = "Abeja"
@@ -162,31 +163,37 @@ try:
             neta = ((price - pos['precio']) / pos['precio']) * 100
             if price > pos.get('max_alc', pos['precio']): pos['max_alc'] = price
             
-            # --- LÓGICA TP DINÁMICO POR RADAR ---
+            # --- MEJORA: ESCALONES DE GANANCIA ---
+            sl_din = -1.20
+            if neta >= 0.80: sl_din = 0.60
+            elif neta >= 0.50: sl_din = 0.35
+            elif neta >= 0.30: sl_din = 0.15
+            elif neta >= 0.12: sl_din = 0.00 # Break Even
+            elif neta > 0.05: sl_din = -0.05
+
+            # --- MEJORA: TP DINÁMICO Y CIERRE POR RSI ---
             t_base = target_ab if pos['tipo'] == "Abeja" else target_cz
-            t_obj = t_base * 1.25 if radar_txt == "ALCISTA" else t_base
-            caida_tol = -0.10 if radar_txt == "ALCISTA" else -0.03
+            t_obj = t_base * 1.30 if radar_txt == "ALCISTA" else t_base
+            
+            # Ajuste de "Aire" (caida_tol)
+            if rsi > 80: caida_tol = -0.02 # Agotamiento: cerrar rápido
+            elif radar_txt == "ALCISTA": caida_tol = -0.10 # Tendencia: dar aire
+            else: caida_tol = -0.03 # Bajista: asegurar rápido
+            
             caida_max = ((price - pos['max_alc']) / pos['max_alc']) * 100
             
-            # --- CEREBRO DE SALIDA Y BREAK EVEN ---
-            sl_din = -1.20
-            if neta >= 0.30: # CANDADO DE GANANCIA
-                sl_din = 0.15
-                st.success(f"🔒 Ganancia Asegurada (+0.15%) para {pos['tipo']}")
-            elif neta >= 0.12: # BREAK EVEN
-                sl_din = 0.00
-                st.info(f"🛡️ Break Even Activado para {pos['tipo']}")
-            elif neta > 0.05:
-                sl_din = -0.05
-
             if neta <= sl_din or (neta >= t_obj and caida_max <= caida_tol):
                 mexc.create_market_sell_order(SYMBOL, pos['monto'] / pos['precio'])
                 profit = (pos['monto'] * neta / 100)
                 state["pnl_acumulado"] += profit
                 tipo_etiq = pos['tipo'] if neta > 0 else f"SL-{pos['tipo']}"
                 
+                # Al resetear state["posiciones"] aquí, save_state limpiará la hoja
+                temp_pos = [p for p in state["posiciones"] if p['tipo'] != pos['tipo']]
+                state["posiciones"] = temp_pos
+                
                 if save_state(state, [datetime.now().strftime('%H:%M:%S'), "BTC", tipo_etiq, pos['precio'], price, f"{neta:.2f}%", f"{profit:.4f}"]):
-                    send_telegram_msg(f"💰 *{BOT_NAME} - VENTA FINALIZADA*\n\n📊 *Resultado:* `{neta:.2f}%`\n💵 *Ganancia:* `${profit:.4f} USDT`\n🇦🇷 *Pesos:* `${(profit * 1250):,.2f} ARS`\n📉 *Salida:* `${price:,.2f}`")
+                    send_telegram_msg(f"💰 *{BOT_NAME} - VENTA FINALIZADA*\n\n📊 *Resultado:* `{neta:.2f}%`\n💵 *Ganancia:* `${profit:.4f} USDT`\n📉 *Salida:* `${price:,.2f}`")
                 nuevas.append(None)
             else:
                 nuevas.append(pos)
@@ -197,6 +204,7 @@ try:
 
     st.markdown(f'<div class="neon-panel"><div class="panel-header">MOTOR</div><div class="panel-content"><div style="color:white; font-style:italic;">"{log_msg}"</div></div></div>', unsafe_allow_html=True)
 
+    # --- HISTORIAL (MANTENIDO) ---
     hist_html = '<div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 2px solid #DC143C; padding-bottom:5px; font-size: 12px;"><div>HORA</div><div>DETALLE</div><div>ENTRADA</div><div>SALIDA</div><div>PROFIT</div></div>'
     if state["history"]:
         for h in reversed(state["history"][-8:]):
