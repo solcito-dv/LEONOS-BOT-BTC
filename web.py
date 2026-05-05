@@ -28,21 +28,19 @@ def load_state():
         sh = conectar_gs()
         ws = sh.worksheet("ESTADO")
         filas = ws.get_all_records()
-        # CAPITAL ACTUALIZADO
         if not filas: return {"capital_asignado": 30.40, "pnl_acumulado": 0.0, "posiciones": [], "history": []}
-        datos = filas[0]
         
+        datos_base = filas[0]
         def safe_float(v, default=0.0):
             try: return float(str(v).replace(',', '.').strip()) if v not in [None, '', ' ', 'Ninguna'] else default
             except: return default
 
         state = {
             "capital_asignado": 30.40, 
-            "pnl_acumulado": safe_float(datos.get('PNL_Acumulado'), 0.0),
+            "pnl_acumulado": safe_float(datos_base.get('PNL_Acumulado'), 0.0),
             "posiciones": [], "history": []
         }
         
-        # Cargar todas las posiciones activas de la hoja (soporta hasta 3 filas de posiciones si las hubiera)
         for fila in filas:
             pos_nombre = str(fila.get('Posicion_Abierta', "Ninguna")).strip()
             if pos_nombre and pos_nombre not in ["Ninguna", "0", "None", ""]:
@@ -64,24 +62,20 @@ def save_state(state_data, venta_realizada=None):
         sh = conectar_gs()
         ws_e = sh.worksheet("ESTADO")
         
-        # Limpiar filas anteriores para evitar datos fantasma
-        ws_e.update('A2:G5', [["" for _ in range(7)] for _ in range(4)])
-        
-        filas_update = []
+        # Mantenemos las filas organizadas: Fila 2 (Pos 1), Fila 3 (Pos 2)
+        filas_a_subir = []
         if not state_data["posiciones"]:
-            filas_update.append([float(state_data["capital_asignado"]), float(state_data["pnl_acumulado"]), "Ninguna", 0.0, 0.0, 0.0, -2.0])
+            filas_a_subir.append([30.40, float(state_data["pnl_acumulado"]), "Ninguna", 0.0, 0.0, 0.0, -2.0])
+            ws_e.update('A2:G3', [filas_a_subir[0], ["", "", "Ninguna", 0.0, 0.0, 0.0, -2.0]], value_input_option='USER_ENTERED')
         else:
             for p in state_data["posiciones"]:
-                filas_update.append([float(state_data["capital_asignado"]), float(state_data["pnl_acumulado"]), str(p["tipo"]), float(p["precio"]), float(p["monto"]), float(p.get("max_alc", p["precio"])), float(p.get("last_sl_msg", -2.0))])
-        
-        ws_e.update('A2:G' + str(1 + len(filas_update)), filas_update, value_input_option='USER_ENTERED')
+                filas_a_subir.append([30.40, float(state_data["pnl_acumulado"]), str(p["tipo"]), float(p["precio"]), float(p["monto"]), float(p.get("max_alc", p["precio"])), float(p.get("last_sl_msg", -2.0))])
+            ws_e.update('A2:G' + str(1 + len(filas_a_subir)), filas_a_subir, value_input_option='USER_ENTERED')
         
         if venta_realizada:
-            ws_h = sh.worksheet("HISTORIAL")
-            ws_h.append_row([str(x) for x in venta_realizada], value_input_option='USER_ENTERED')
+            sh.worksheet("HISTORIAL").append_row([str(x) for x in venta_realizada], value_input_option='USER_ENTERED')
         return True
-    except:
-        return False
+    except: return False
 
 def send_telegram_msg(msg):
     try:
@@ -89,8 +83,8 @@ def send_telegram_msg(msg):
         requests.get(url, timeout=5)
     except: pass
 
-# --- 3. ESTILOS ---
-st.set_page_config(page_title=f"{BOT_NAME} | V36.6", layout="wide")
+# --- 3. ESTILOS (Sin cambios en interfaz) ---
+st.set_page_config(page_title=f"{BOT_NAME} | V36.8", layout="wide")
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@500;800&display=swap');
@@ -117,15 +111,12 @@ with st.sidebar:
     target_ab = st.slider("Target Abeja (%)", 0.05, 0.50, 0.15, step=0.01)
     target_cz = st.slider("Target Cazadora (%)", 0.10, 1.5, 0.50, step=0.05)
 
-st.markdown(f'<h2 style="font-family:Orbitron; color:#DC143C; margin-bottom:20px;">🦁 {BOT_NAME} V36.6</h2>', unsafe_allow_html=True)
+st.markdown(f'<h2 style="font-family:Orbitron; color:#DC143C; margin-bottom:20px;">🦁 {BOT_NAME} V36.8</h2>', unsafe_allow_html=True)
 
 # --- 4. MOTOR ---
 try:
     mexc = ccxt.mexc({'apiKey': API_KEY_BTC, 'secret': SECRET_KEY_BTC, 'options': {'adjustForTimeDifference': True}})
-    
-    # Obtener saldo real de MEXC para evitar errores de capital
-    balance = mexc.fetch_balance()
-    usdt_real = balance.get('USDT', {}).get('free', 0.0)
+    balance = mexc.fetch_balance(); usdt_real = balance.get('USDT', {}).get('free', 0.0)
     
     b1 = mexc.fetch_ohlcv(SYMBOL, timeframe='1m', limit=205)
     df = pd.DataFrame(b1, columns=['time', 'open', 'high', 'low', 'close', 'vol'])
@@ -153,28 +144,27 @@ try:
         log_msg = "Buscando entrada..."
         monto_op = (30.40 / 2) - 0.05
         
-        # Solo entra si el capital REAL en MEXC es suficiente
+        # 1. ENTRADA (Detallista en Telegram)
         if len(state["posiciones"]) < 2 and usdt_real >= monto_op:
             t_compra = None
-            if rsi < 40 and price > ema9 and not any(p['tipo'] == "Abeja" for p in state["posiciones"]):
-                t_compra = "Abeja"
-            elif rsi < 35 and radar_txt == "ALCISTA" and not any(p['tipo'] == "Cazadora" for p in state["posiciones"]):
-                t_compra = "Cazadora"
+            if rsi < 40 and price > ema9 and not any(p['tipo'] == "Abeja" for p in state["posiciones"]): t_compra = "Abeja"
+            elif rsi < 35 and radar_txt == "ALCISTA" and not any(p['tipo'] == "Cazadora" for p in state["posiciones"]): t_compra = "Cazadora"
 
             if t_compra:
-                new_pos = {"precio": price, "monto": monto_op, "tipo": t_compra, "max_alc": price, "last_sl_msg": -1.20}
+                new_pos = {"precio": price, "monto": monto_op, "tipo": t_compra, "max_alc": price, "last_sl_msg": -1.50}
                 state["posiciones"].append(new_pos)
                 if save_state(state):
                     mexc.create_market_buy_order(SYMBOL, monto_op / price)
-                    send_telegram_msg(f"🦁 *{BOT_NAME} - ENTRADA*\n\n🔥 *Estrategia:* {t_compra.upper()}\n💵 *Precio:* `${price:,.2f}`")
+                    send_telegram_msg(f"🦁 *{BOT_NAME} - ENTRADA DETALLADA*\n\n🔥 *Estrategia:* {t_compra.upper()}\n💵 *Precio Entrada:* `${price:,.2f}`\n💰 *Monto:* `${monto_op:.2f} USDT`\n📊 *RSI:* `{rsi:.2f}`\n📍 *Radar:* `{radar_txt}`")
 
+        # 2. SEGUIMIENTO Y SALIDA
         nuevas_pos = []
         status_ops = []
         for pos in state["posiciones"]:
             neta = ((price - pos['precio']) / pos['precio']) * 100
             if price > pos.get('max_alc', pos['precio']): pos['max_alc'] = price
             
-            # --- PROTECCIÓN DE SUBIDAS (ESCALONES) ---
+            # --- ESCUDOS (Solo Interfaz) ---
             sl_din = -1.20
             label_escudo = ""
             if neta >= 0.80: sl_din, label_escudo = 0.60, "🛡️ Escudo +0.60%"
@@ -182,32 +172,27 @@ try:
             elif neta >= 0.30: sl_din, label_escudo = 0.15, "🛡️ Escudo +0.15%"
             elif neta >= 0.12: sl_din, label_escudo = 0.00, "🛡️ Break Even (0.00%)"
 
-            if label_escudo and sl_din > pos.get('last_sl_msg', -1.20):
-                pos['last_sl_msg'] = sl_din
-                send_telegram_msg(f"🦁 *{BOT_NAME} - PROTECCIÓN*\n\n📈 *{pos['tipo']}:* {label_escudo}\n💰 *Neta Actual:* `{neta:.2f}%`")
+            if label_escudo: pos['last_sl_msg'] = sl_din # Guardamos nivel internamente
 
-            # --- MEJORA: VENTA AGRESIVA EN PICO ---
             t_base = target_ab if pos['tipo'] == "Abeja" else target_cz
-            # Si el RSI es muy alto (>75), vendemos al tocar el target sin esperar nada
-            if neta >= t_base and rsi > 75:
-                vender_ya = True
-            else:
-                # Si no, usamos el aire tradicional
-                caida_tol = -0.10 if radar_txt == "ALCISTA" else -0.03
-                caida_max = ((price - pos['max_alc']) / pos['max_alc']) * 100
-                vender_ya = (neta >= t_base and caida_max <= caida_tol) or (neta <= sl_din)
-
-            if vender_ya:
+            caida_tol = -0.02 if rsi > 75 else (-0.10 if radar_txt == "ALCISTA" else -0.03)
+            caida_max = ((price - pos['max_alc']) / pos['max_alc']) * 100
+            
+            if (neta >= t_base and (rsi > 75 or caida_max <= caida_tol)) or (neta <= sl_din):
                 mexc.create_market_sell_order(SYMBOL, pos['monto'] / pos['precio'])
                 profit = (pos['monto'] * neta / 100)
                 state["pnl_acumulado"] += profit
                 tipo_etiq = pos['tipo'] if neta > 0 else f"SL-{pos['tipo']}"
-                if save_state(state, [datetime.now().strftime('%H:%M:%S'), "BTC", tipo_etiq, pos['precio'], price, f"{neta:.2f}%", f"{profit:.4f}"]):
-                    send_telegram_msg(f"💰 *{BOT_NAME} - VENTA*\n\n📊 *Resultado:* `{neta:.2f}%` ({pos['tipo']})\n💵 *Profit:* `${profit:.4f} USDT`")
+                save_state(state, [datetime.now().strftime('%H:%M:%S'), "BTC", tipo_etiq, pos['precio'], price, f"{neta:.2f}%", f"{profit:.4f}"])
+                # Salida detallada sin repetir info de entrada
+                send_telegram_msg(f"💰 *{BOT_NAME} - SALDA CONFIRMADA*\n\n📊 *Tipo:* {pos['tipo']}\n📉 *Precio Venta:* `${price:,.2f}`\n📈 *Rendimiento:* `{neta:.2f}%` \n💵 *Profit Net:* `${profit:.4f} USDT`")
             else:
                 nuevas_pos.append(pos)
                 color_n = "#00FF00" if neta > 0 else "#FF0000"
-                status_ops.append(f'<span style="color:{color_n};">{pos["tipo"]}: {neta:.2f}%</span>')
+                # Aquí aparece el mensaje de Escudo solicitado en la INTERFAZ
+                info_display = f'{pos["tipo"]}: {neta:.2f}%'
+                if label_escudo: info_display += f' [{label_escudo}]'
+                status_ops.append(f'<span style="color:{color_n}; font-weight:bold;">{info_display}</span>')
         
         state["posiciones"] = nuevas_pos
         if status_ops: log_msg = " | ".join(status_ops)
@@ -215,27 +200,16 @@ try:
 
     st.markdown(f'<div class="neon-panel"><div class="panel-header">MOTOR</div><div class="panel-content"><div>{log_msg}</div></div></div>', unsafe_allow_html=True)
 
-    # --- HISTORIAL ---
+    # --- HISTORIAL (Sin cambios) ---
     hist_html = '<div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 2px solid #DC143C; padding-bottom:5px; font-size: 12px;"><div>HORA</div><div>DETALLE</div><div>ENTRADA</div><div>SALIDA</div><div>PROFIT</div></div>'
     if state["history"]:
         vistas = set()
         for h in reversed(state["history"]):
             id_fila = f"{h.get('Hora')}-{h.get('Profit')}"
             if id_fila in vistas or not h.get("Hora"): continue
-            vistas.add(id_fila)
-            p_usd = str(h.get("Profit", "0"))
-            tipo_h = str(h.get("Tipo", "Abeja"))
-            es_sl = "SL" in tipo_h or "-" in str(h.get("%", ""))
-            clase_b = "b-sl" if es_sl else "b-venta"
-            color_p = "#FF0000" if es_sl else "#00FF00"
-            hist_html += f'''
-            <div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr; padding: 8px 0; border-bottom: 1px solid #222; font-size: 11px; align-items: center;">
-                <div>{h.get("Hora", "-")}</div>
-                <div><span class="burbuja b-entrada">IN</span><span class="burbuja {clase_b}">{tipo_h}</span></div>
-                <div>${h.get("Entrada", "-")}</div>
-                <div>${h.get("Salida", "-")}</div>
-                <div style="color:{color_p}; font-weight:bold;">${p_usd}</div>
-            </div>'''
+            vistas.add(id_fila); p_usd = str(h.get("Profit", "0")); tipo_h = str(h.get("Tipo", "Abeja"))
+            es_sl = "SL" in tipo_h or "-" in str(h.get("%", "")); clase_b = "b-sl" if es_sl else "b-venta"; color_p = "#FF0000" if es_sl else "#00FF00"
+            hist_html += f'<div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr; padding: 8px 0; border-bottom: 1px solid #222; font-size: 11px; align-items: center;"><div>{h.get("Hora", "-")}</div><div><span class="burbuja b-entrada">IN</span><span class="burbuja {clase_b}">{tipo_h}</span></div><div>${h.get("Entrada", "-")}</div><div>${h.get("Salida", "-")}</div><div style="color:{color_p}; font-weight:bold;">${p_usd}</div></div>'
             if len(vistas) >= 8: break
     st.markdown(f'<div class="neon-panel"><div class="panel-header">📜 HISTORIAL DE OPERACIONES</div><div class="panel-content">{hist_html}</div></div>', unsafe_allow_html=True)
 
