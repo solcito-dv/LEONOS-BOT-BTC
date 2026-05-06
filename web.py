@@ -49,7 +49,7 @@ def load_state():
                     "monto": safe_float(fila.get('Monto_Invertido')),
                     "tipo": pos_nombre,
                     "max_alc": safe_float(fila.get('Max_Alcanzado'), safe_float(fila.get('Precio_Entrada'))),
-                    "last_sl_msg": safe_float(fila.get('Last_SL', -2.0))
+                    "last_sl_msg": safe_float(fila.get('Last_SL'), -1.20)
                 })
         
         state["history"] = sh.worksheet("HISTORIAL").get_all_records()
@@ -63,11 +63,11 @@ def save_state(state_data, venta_realizada=None):
         ws_e = sh.worksheet("ESTADO")
         filas_a_subir = []
         if not state_data["posiciones"]:
-            filas_a_subir.append([30.40, float(state_data["pnl_acumulado"]), "Ninguna", 0.0, 0.0, 0.0, -2.0])
-            ws_e.update('A2:G3', [filas_a_subir[0], ["", "", "Ninguna", 0.0, 0.0, 0.0, -2.0]], value_input_option='USER_ENTERED')
+            filas_a_subir.append([30.40, float(state_data["pnl_acumulado"]), "Ninguna", 0.0, 0.0, 0.0, -1.20])
+            ws_e.update('A2:G3', [filas_a_subir[0], ["", "", "Ninguna", 0.0, 0.0, 0.0, -1.20]], value_input_option='USER_ENTERED')
         else:
             for p in state_data["posiciones"]:
-                filas_a_subir.append([30.40, float(state_data["pnl_acumulado"]), str(p["tipo"]), float(p["precio"]), float(p["monto"]), float(p.get("max_alc", p["precio"])), float(p.get("last_sl_msg", -2.0))])
+                filas_a_subir.append([30.40, float(state_data["pnl_acumulado"]), str(p["tipo"]), float(p["precio"]), float(p["monto"]), float(p.get("max_alc", p["precio"])), float(p.get("last_sl_msg", -1.20))])
             ws_e.update('A2:G' + str(1 + len(filas_a_subir)), filas_a_subir, value_input_option='USER_ENTERED')
         
         if venta_realizada:
@@ -81,8 +81,8 @@ def send_telegram_msg(msg):
         requests.get(url, timeout=5)
     except: pass
 
-# --- 3. ESTILOS (RESPETADOS AL 100%) ---
-st.set_page_config(page_title=f"{BOT_NAME} | V36.9", layout="wide")
+# --- 3. ESTILOS ---
+st.set_page_config(page_title=f"{BOT_NAME} | V37.0", layout="wide")
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=JetBrains+Mono:wght@500;800&display=swap');
@@ -100,7 +100,6 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Inicialización de cooldown en sesión
 if 'last_sell_time' not in st.session_state:
     st.session_state.last_sell_time = datetime.now() - timedelta(minutes=10)
 
@@ -110,12 +109,12 @@ with st.sidebar:
     st.markdown(f'<p style="color:#DC143C; font-family:Orbitron; font-size:18px; font-weight:900;">🦁 {BOT_NAME}</p>', unsafe_allow_html=True)
     bot_encendido = st.toggle('SISTEMA ACTIVO', value=True)
     st.markdown("---")
-    target_ab = st.slider("Target Abeja (%)", 0.05, 0.50, 0.15, step=0.01)
-    target_cz = st.slider("Target Cazadora (%)", 0.10, 1.5, 0.50, step=0.05)
+    target_ab = st.slider("Target Abeja (%)", 0.05, 0.60, 0.18, step=0.01)
+    target_cz = st.slider("Target Cazadora (%)", 0.50, 3.0, 1.20, step=0.10)
 
-st.markdown(f'<h2 style="font-family:Orbitron; color:#DC143C; margin-bottom:20px;">🦁 {BOT_NAME} V36.9</h2>', unsafe_allow_html=True)
+st.markdown(f'<h2 style="font-family:Orbitron; color:#DC143C; margin-bottom:20px;">🦁 {BOT_NAME} V37.0</h2>', unsafe_allow_html=True)
 
-# --- 4. MOTOR REFORZADO ---
+# --- 4. MOTOR ACTUALIZADO ---
 try:
     mexc = ccxt.mexc({'apiKey': API_KEY_BTC, 'secret': SECRET_KEY_BTC, 'options': {'adjustForTimeDifference': True}})
     balance = mexc.fetch_balance(); usdt_real = balance.get('USDT', {}).get('free', 0.0)
@@ -145,17 +144,14 @@ try:
     log_msg = "SISTEMA EN PAUSA"
     if bot_encendido:
         log_msg = "Buscando entrada..."
-        # COOLDOWN CHECK (5 Minutos)
         time_diff = (datetime.now() - st.session_state.last_sell_time).total_seconds() / 60
         
         if time_diff < 5:
             log_msg = f"⏱️ COOLDOWN ACTIVO ({5 - int(time_diff)}m restantes)"
         else:
             monto_op = (30.40 / 2) - 0.05
-            # 1. ENTRADA REFORZADA
             if len(state["posiciones"]) < 2 and usdt_real >= monto_op:
                 t_compra = None
-                # Abeja con Filtro Anti-Techo (Distancia EMA9 < 0.08%)
                 if rsi < 40 and price > ema9 and distancia_ema9 < 0.08 and not any(p['tipo'] == "Abeja" for p in state["posiciones"]): 
                     t_compra = "Abeja"
                 elif rsi < 35 and radar_txt == "ALCISTA" and not any(p['tipo'] == "Cazadora" for p in state["posiciones"]): 
@@ -168,35 +164,46 @@ try:
                         mexc.create_market_buy_order(SYMBOL, monto_op / price)
                         send_telegram_msg(f"🦁 *{BOT_NAME} - ENTRADA*\n\n🔥 *Estrategia:* {t_compra.upper()}\n💵 *Precio:* `${price:,.2f}`\n📍 *Dist. EMA9:* `{distancia_ema9:.3f}%` \n📊 *RSI:* `{rsi:.2f}`")
 
-        # 2. SEGUIMIENTO Y SALIDA DE HIERRO
+        # --- SEGUIMIENTO Y SALIDA REFORZADA ---
         nuevas_pos = []
         status_ops = []
         for pos in state["posiciones"]:
             neta = ((price - pos['precio']) / pos['precio']) * 100
             if price > pos.get('max_alc', pos['precio']): pos['max_alc'] = price
             
-            # --- ESCUDOS AGRESIVOS (SL Dinámico) ---
+            # 1. ESCUDOS PROGRESIVOS (TRINQUETE)
             sl_din = -1.20
             label_escudo = ""
-            if neta >= 0.80: sl_din, label_escudo = 0.60, "🛡️ Escudo +0.60%"
-            elif neta >= 0.40: sl_din, label_escudo = 0.20, "🛡️ Escudo +0.20%"
-            elif neta >= 0.15: sl_din, label_escudo = 0.02, "🛡️ Break Even (0.02%)"
+            if neta >= 1.00: sl_din, label_escudo = 0.80, "🛡️ Escudo +0.80%"
+            elif neta >= 0.60: sl_din, label_escudo = 0.40, "🛡️ Escudo +0.40%"
+            elif neta >= 0.30: sl_din, label_escudo = 0.15, "🛡️ Escudo +0.15%"
+            elif neta >= 0.15: sl_din, label_escudo = 0.02, "🛡️ Break Even (+0.02%)"
 
             if label_escudo: pos['last_sl_msg'] = sl_din
 
+            # 2. MARGEN DE ESCAPE (Acompañar subida sin asfixiar)
             t_base = target_ab if pos['tipo'] == "Abeja" else target_cz
-            caida_max = ((price - pos['max_alc']) / pos['max_alc']) * 100
+            margen_escape = -0.03 if pos['tipo'] == "Abeja" else -0.12
+            caida_desde_max = ((price - pos['max_alc']) / pos['max_alc']) * 100
             
-            # CIERRE DE HIERRO: Venta inmediata si toca SL o Trailing después del target
-            if (neta >= t_base and caida_max <= -0.03) or (neta <= sl_din):
-                mexc.create_market_sell_order(SYMBOL, pos['monto'] / pos['precio'])
-                profit = (pos['monto'] * neta / 100)
-                state["pnl_acumulado"] += profit
-                st.session_state.last_sell_time = datetime.now() # Inicia Cooldown
+            # 3. CONDICIÓN DE CIERRE
+            if (neta >= t_base and caida_desde_max <= margen_escape) or (neta <= sl_din):
+                # SOLUCIÓN ERROR 30005: Consultamos saldo real antes de vender
+                balance_check = mexc.fetch_balance()
+                asset_code = SYMBOL.split('/')[0] # 'BTC'
+                cant_real = balance_check.get(asset_code, {}).get('free', 0.0)
                 
-                tipo_etiq = pos['tipo'] if neta > 0 else f"SL-{pos['tipo']}"
-                save_state(state, [datetime.now().strftime('%H:%M:%S'), "BTC", tipo_etiq, pos['precio'], price, f"{neta:.2f}%", f"{profit:.4f}"])
-                send_telegram_msg(f"💰 *{BOT_NAME} - SALIDA*\n\n📊 *Tipo:* {pos['tipo']}\n📉 *Venta:* `${price:,.2f}`\n📈 *Neto:* `{neta:.2f}%` \n💵 *Profit:* `${profit:.4f} USDT`")
+                if cant_real > 0:
+                    mexc.create_market_sell_order(SYMBOL, cant_real)
+                    profit = (pos['monto'] * neta / 100)
+                    state["pnl_acumulado"] += profit
+                    st.session_state.last_sell_time = datetime.now()
+                    
+                    tipo_etiq = pos['tipo'] if neta > 0 else f"SL-{pos['tipo']}"
+                    save_state(state, [datetime.now().strftime('%H:%M:%S'), "BTC", tipo_etiq, pos['precio'], price, f"{neta:.2f}%", f"{profit:.4f}"])
+                    send_telegram_msg(f"💰 *{BOT_NAME} - SALIDA*\n\n📊 *Tipo:* {pos['tipo']}\n📉 *Venta:* `${price:,.2f}`\n📈 *Neto:* `{neta:.2f}%` \n💵 *Profit:* `${profit:.4f} USDT` ")
+                else:
+                    st.warning("Venta fallida: Saldo insuficiente en MEXC (0 BTC)")
             else:
                 nuevas_pos.append(pos)
                 color_n = "#00FF00" if neta > 0 else "#FF0000"
@@ -210,7 +217,7 @@ try:
 
     st.markdown(f'<div class="neon-panel"><div class="panel-header">MOTOR</div><div class="panel-content"><div>{log_msg}</div></div></div>', unsafe_allow_html=True)
 
-    # --- HISTORIAL (RESPETADO) ---
+    # --- HISTORIAL ---
     hist_html = '<div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr; color: #FFFF00; font-weight: bold; border-bottom: 2px solid #DC143C; padding-bottom:5px; font-size: 12px;"><div>HORA</div><div>DETALLE</div><div>ENTRADA</div><div>SALIDA</div><div>PROFIT</div></div>'
     if state["history"]:
         vistas = set()
